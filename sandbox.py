@@ -1,18 +1,28 @@
-from matching import get_matcher
-from matching.viz import plot_matches
+from matching import get_matcher, available_models
+from matching.viz import *
 import warnings
+import torch
+from pathlib import Path
+
 
 warnings.filterwarnings("ignore")
 
-device = 'mps'  # 'cpu', 'cuda', 'mps'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+print(f'Using device: {device}')
+ransac_kwargs = {'ransac_reproj_thresh':3, 
+                  'ransac_conf':0.95, 
+                  'ransac_iters':2000} # optional ransac params
+matcher = get_matcher(['superpoint-lg'], device=device, **ransac_kwargs) #try an ensemble!
 
-matcher = get_matcher('superpoint-lg', device=device)  # Choose any of our ~30+ matchers listed below
-img_size = 512  # optional
+asset_dir = Path('assets/example_pairs')
+pairs = list(asset_dir.iterdir())
+image_size = 512
+for pair in pairs:
+    pair = list(pair.iterdir())
+    img0 = matcher.load_image(pair[0], resize=image_size)
+    img1 = matcher.load_image(pair[1], resize=image_size)
 
-img0 = matcher.load_image('utils/image-matching-models/assets/example_pairs/outdoor/montmartre_close.jpg', resize=img_size)
-img1 = matcher.load_image('utils/image-matching-models/assets/example_pairs/outdoor/montmartre_far.jpg', resize=img_size)
+    result = matcher(img0, img1)
+    num_inliers, H, mkpts0, mkpts1 = result['num_inliers'], result['H'], result['inlier_kpts0'], result['inlier_kpts1']
 
-result = matcher(img0, img1)
-num_inliers, H, inlier_kpts0, inlier_kpts1 = result['num_inliers'], result['H'], result['inlier_kpts0'], result['inlier_kpts1']
-# result.keys() = ['num_inliers', 'H', 'all_kpts0', 'all_kpts1', 'all_desc0', 'all_desc1', 'matched_kpts0', 'matched_kpts1', 'inlier_kpts0', 'inlier_kpts1']
-plot_matches(img0, img1, result, save_path='plot_matches.png')
+    plot_matches(img0, img1, result)

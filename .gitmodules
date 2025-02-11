@@ -1,0 +1,3 @@
+[submodule "utils/image-matching_models"]
+	path = utils/image-matching_models
+	url = https://github.com/alexstoken/image-matching-models.git

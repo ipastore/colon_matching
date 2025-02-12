@@ -136,8 +136,8 @@ file_handler.setFormatter(formatter)
 logging.getLogger().addHandler(file_handler)
 
 # Define the directories and models
-# levels = ['easy', 'medium']
-levels = ['medium']
+# levels = ['easy', 'medium, hard']
+levels = ['hard']
 models = ['superpoint-lg', 'sift-lg', 'tiny-roma']
 
 # Easy case
@@ -163,7 +163,7 @@ if 'easy' in levels:
 
             result = matcher(img0, img1)
             if len(result['matched_kpts1']) == 0:
-                logging.info(f'No matches found for pair: {img_path0} and {img_path1} using {model_name}')
+                logging.info(f'No matches found for pair: {img_path0} and {img_path1} using {model_name} in easy level')
                 continue
             plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
             plot_matches(img0, img1, result, save_path=plot_path)
@@ -199,9 +199,43 @@ if 'medium' in levels:
                 result = matcher(img0, img1)
                 if len(result['matched_kpts1']) == 0:
                     print(f'No matches found for pair: {img_path0} and {img_path1} using {model_name}')
-                    logging.info(f'No matches found for pair: {img_path0} and {img_path1} using {model_name}')
+                    logging.info(f'No matches found for pair: {img_path0} and {img_path1} using {model_name} in medium level with {submap1} and {submap2}')
                     continue
                 # plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
                 # plot_matches(img0, img1, result, save_path=plot_path)
                 # print(f'Saved plot to {plot_path}')
                 print(f'Done matching {img_path0} with {img_path1} using {model_name}')
+
+# Hard case
+if 'hard' in levels:
+    submaps = [('118', '093'), ('118', '094'), ('118', '095')]
+
+    for submap1, submap2 in submaps:
+        image_dir1 = Path(f'data/hard/{submap1}')
+        image_dir2 = Path(f'data/medium/{submap2}')
+        image_paths1 = list(image_dir1.glob('*.png'))
+        image_paths2 = list(image_dir2.glob('*.png'))
+        pairs = list(itertools.product(image_paths1, image_paths2))
+
+        for model_name in models:
+            # Create output directory for the model
+            output_dir = Path(f'output/hard/{submap1}_{submap2}/{model_name}')
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Initialize the matcher
+            device = get_default_device()
+            matcher = get_matcher(model_name, device=device)
+
+            # Process each pair of images
+            for img_path0, img_path1 in pairs:
+                print(f"Matching {img_path0} with {img_path1} using {model_name}")
+                img0 = matcher.load_image(img_path0, resize=512)
+                img1 = matcher.load_image(img_path1, resize=512)
+
+                result = matcher(img0, img1)
+                if len(result['matched_kpts1']) == 0:
+                    logging.info(f'No matches found for pair: {img_path0} and {img_path1} using {model_name} in hard level with {submap1} and {submap2}')
+                    continue
+                plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
+                plot_matches(img0, img1, result, save_path=plot_path)
+                print(f'Saved plot to {plot_path}')

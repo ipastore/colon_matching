@@ -1,4 +1,3 @@
-import logging
 import os
 import itertools
 from matching import get_matcher
@@ -6,27 +5,34 @@ from matching.utils import get_default_device
 from matching.viz import plot_matches
 from pathlib import Path
 import matplotlib.pyplot as plt
-from logging import getLogger
-from logging import StreamHandler, FileHandler, Formatter
-from datetime import datetime
-import hashlib
 from utils.logging import setup_logging
+import numpy as np
 
-# Print current working directory
-print(f"Current working directory: {os.getcwd()}")
-
-# Set up logging
+########################################################## CONFIG ##########################################################
 logger = setup_logging()
+############################# CHOOSE LEVELS #############################
+levels = ['easy','medium','hard']
+# levels = ['medium','hard']
+# levels = ['easy']
+############################# CHOOSE SUBMAPS #############################
+submaps_medium = [('093', '094'),('093', '095'), ('094', '095')]
+submaps_hard = [('118', '093'), ('118', '094'), ('118', '095')]
+############################# CHOOSE MODELS #############################
+# models = ['superpoint-lg', 'sift-lg','tiny-roma', 'sift-nn']
+# models = ['superpoint-lg', 'sift-lg']
+models = ['gim-lg']
+############################# CHOOSE DATASET #############################
+# dataset_type = 'wout_mask'
+dataset_type = 'specular_masked'
+########################################################## CONFIG ##########################################################
+image_dir = Path(f'data/{dataset_type}')
 
-# Define the directories and models
-levels = ['medium']
-models = ['superpoint-lg']
 
 # Easy case
 if 'easy' in levels:
     logger.info('Starting easy case')
-    image_dir = Path('data/easy/095')
-    image_paths = list(image_dir.glob('*.png'))
+    image_dir1 = Path(f'{image_dir}/easy/095')
+    image_paths = list(image_dir1.glob('*.png'))
     pairs = list(itertools.combinations(image_paths, 2))
 
     for model_name in models:
@@ -50,19 +56,19 @@ if 'easy' in levels:
                 logger.info(f'No matches found for pair: {img_path0} and {img_path1} using {model_name} in easy level')
                 continue
             plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
+            img0 = np.clip(img0, 0, 1)
+            img1 = np.clip(img1, 0, 1)
             plot_matches(img0, img1, result, save_path=plot_path)
             logger.info(f'Saved plot to {plot_path}')
-            print(f'Saved plot to {plot_path}')
 
 # Medium case
 if 'medium' in levels:
     logger.info('Starting medium case')
-    submaps = [('093', '094')]
 
-    for submap1, submap2 in submaps:
+    for submap1, submap2 in submaps_medium:
         logger.info(f'Starting submap pair: {submap1} and {submap2} for medium case')
-        image_dir1 = Path(f'data/medium/{submap1}')
-        image_dir2 = Path(f'data/medium/{submap2}')
+        image_dir1 = Path(f'{image_dir}/medium/{submap1}')
+        image_dir2 = Path(f'{image_dir}/medium/{submap2}')
         image_paths1 = list(image_dir1.glob('*.png'))
         image_paths2 = list(image_dir2.glob('*.png'))
         pairs = list(itertools.product(image_paths1, image_paths2))
@@ -88,18 +94,19 @@ if 'medium' in levels:
                     logger.info(f'No matches found for pair: {img_path0} and {img_path1} using {model_name} in medium level with {submap1} and {submap2}')
                     continue
                 plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
+                img0 = np.clip(img0, 0, 1)
+                img1 = np.clip(img1, 0, 1)
                 plot_matches(img0, img1, result, save_path=plot_path)
-                print(f'Saved plot to {plot_path}')
+                logger.info(f'Saved plot to {plot_path}')
 
 # Hard case
 if 'hard' in levels:
     logger.info('Starting hard case')
-    submaps = [('118', '093'), ('118', '094'), ('118', '095')]
 
-    for submap1, submap2 in submaps:
+    for submap1, submap2 in submaps_hard:
         logger.info(f'Starting submap pair: {submap1} and {submap2} for hard case')
-        image_dir1 = Path(f'data/hard/{submap1}')
-        image_dir2 = Path(f'data/medium/{submap2}')
+        image_dir1 = Path(f'{image_dir}/hard/{submap1}')
+        image_dir2 = Path(f'{image_dir}/medium/{submap2}')
         image_paths1 = list(image_dir1.glob('*.png'))
         image_paths2 = list(image_dir2.glob('*.png'))
         pairs = list(itertools.product(image_paths1, image_paths2))
@@ -125,6 +132,7 @@ if 'hard' in levels:
                     logger.info(f'No matches found for pair: {img_path0} and {img_path1} using {model_name} in hard level with {submap1} and {submap2}')
                     continue
                 plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
+                img0 = np.clip(img0, 0, 1)
+                img1 = np.clip(img1, 0, 1)    
                 plot_matches(img0, img1, result, save_path=plot_path)
                 logger.info(f'Saved plot to {plot_path}')
-                print(f'Saved plot to {plot_path}')

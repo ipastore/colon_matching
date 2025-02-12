@@ -1,3 +1,7 @@
+> [!NOTE]
+>	This repo is optimized for usability, not necessarily for speed or performance. Ideally you can use this repo to find the matcher that best suits your needs, and then use the original code (or a modified version of this code) to get maximize performance. Default hyperparameters used here **may not be optimal for your use case!** source:https://github.com/alexstoken/image-matching-models
+
+
 ## Information about cases:
 
 Son 3 carpetas: easy, medium and hard

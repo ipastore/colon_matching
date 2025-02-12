@@ -9,6 +9,7 @@ def setup_logging():
     # Set up logging
     logger = getLogger('debug_logger')
     logger.setLevel(logging.DEBUG)
+    logger.propagate = False  # Prevent messages from propagating to the root logger
 
     # Create console handler for debug logging
     console_handler = StreamHandler()
@@ -30,7 +31,6 @@ def setup_logging():
     info_file_handler.setLevel(logging.INFO)
     info_formatter = Formatter('%(asctime)s - %(message)s')
     info_file_handler.setFormatter(info_formatter)
-    print(log_filename)
 
     # Add a filter to only log 'No matches found' messages to the info log
     class NoMatchesFilter(logging.Filter):

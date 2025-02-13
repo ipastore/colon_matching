@@ -5,15 +5,15 @@ from matching.utils import get_default_device
 from matching.viz import plot_matches
 from pathlib import Path
 import matplotlib.pyplot as plt
-from utils.logging import setup_logging
+from my_logging import setup_logging
 import numpy as np
 
 ########################################################## CONFIG ##########################################################
 logger = setup_logging()
 ############################# CHOOSE LEVELS #############################
-levels = ['easy','medium','hard']
+# levels = ['easy','medium','hard']
 # levels = ['medium','hard']
-# levels = ['easy']
+levels = ['easy']
 ############################# CHOOSE SUBMAPS #############################
 submaps_medium = [('093', '094'),('093', '095'), ('094', '095')]
 submaps_hard = [('118', '093'), ('118', '094'), ('118', '095')]

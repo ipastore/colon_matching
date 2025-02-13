@@ -6,6 +6,9 @@ import os
 
 
 def setup_logging():
+    # Ensure the logs directory exists
+    os.makedirs('logs', exist_ok=True)
+
     # Set up logging
     logger = getLogger('debug_logger')
     logger.setLevel(logging.DEBUG)
@@ -42,5 +45,4 @@ def setup_logging():
 
     return logger
 
-# Ensure the logs directory exists
-os.makedirs('logs', exist_ok=True)
+

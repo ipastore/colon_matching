@@ -43,6 +43,12 @@ cd utils/image-matching_models
 ```bash
 git pull origin main
 ```
+#### ✅ **To pull the latest updates for the submodule**
+
+```bash
+git submodule update --init --recursive
+```
+
 
 #### ✅ **Pull updates from the original upstream repo (`alexstoken`)**
 

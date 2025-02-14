@@ -20,7 +20,7 @@ submaps_hard = [('118', '093'), ('118', '094'), ('118', '095')]
 ############################# CHOOSE MODELS #############################
 # models = ['superpoint-lg', 'sift-lg','tiny-roma', 'sift-nn']
 # models = ['superpoint-lg', 'sift-lg']
-models = ['gim-lg']
+models = ['sift-nn']
 ############################# CHOOSE DATASET #############################
 # dataset_type = 'wout_mask'
 dataset_type = 'specular_masked'

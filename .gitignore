@@ -1,3 +1,7 @@
+#Output and logs
+output/
+logs/
+
 #MacOS
 .DS_Store
 

@@ -7,22 +7,29 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from my_logging import setup_logging
 import numpy as np
+import cv2
+from pathlib import PosixPath
+import matplotlib
+# matplotlib.use('TkAgg')  # Set interactive backend
+matplotlib.use('MacOSX')  # Set non-interactive backend
+from specular_mask import *  # imports create_mask_normalized and is_in_mask
+
 
 ########################################################## CONFIG ##########################################################
 logger = setup_logging()
 
 models = ['sift-nn']
-############################# CHOOSE DATASET #############################
-dataset_type = 'wout_mask'
-# dataset_type = 'specular_masked'
+
 ########################################################## CONFIG ##########################################################
-image_dir = Path(f'data/{dataset_type}')
+image_dir = Path(f'data')
 
 logger.info('Starting easy case')
 image_dir1 = Path(f'{image_dir}/easy/095')
 image_paths = list(image_dir1.glob('*.png'))
 pairs = list(itertools.combinations(image_paths, 2))
-pairs = pairs[:1]
+# pairs = pairs[:1]
+# pairs = f_0064790_f_0064786
+# pairs = [(PosixPath('data/wout_mask/easy/095/f_0064926.png'), PosixPath('data/wout_mask/easy/095/f_0064790.png'))]
 
 for model_name in models:
     logger.info(f'Starting model: {model_name} for easy case')
@@ -40,13 +47,31 @@ for model_name in models:
         img0 = matcher.load_image(img_path0, resize=512)
         img1 = matcher.load_image(img_path1, resize=512)
 
+        # Convert tensor images to BGR NumPy arrays
+        img0_np = get_bgr_image(img0)
+        img1_np = get_bgr_image(img1)
+
+        # Get mask zero points and masked images for both images
+        mask0_zero_points, masked_img0 = get_mask_points_and_masked(img0_np)
+        mask1_zero_points, masked_img1 = get_mask_points_and_masked(img1_np)
+
+        # Match the images        
         result = matcher(img0, img1)
         if len(result['matched_kpts1']) == 0:
             logger.info(f'No matches found for pair: {img_path0} and {img_path1} using {model_name} in easy level')
             continue
+
+        # Filter matched keypoints using helper function
+        result_filtered = filter_result(result, mask0_zero_points, mask1_zero_points)
+        logger.info(f'Deleted {len(result["matched_kpts0"]) - len(result_filtered["matched_kpts0"])} matches due to specularities')
+
+        # Plot and log the results
         plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
-        img0 = np.clip(img0, 0, 1)
-        img1 = np.clip(img1, 0, 1)
-        plot_matches(img0, img1, result, save_path=plot_path)
+        
+        plot_matches(masked_img0, masked_img1, result_filtered, save_path=plot_path)
+
         logger.info(f'Saved plot to {plot_path}')
+
+
+
 

@@ -2,11 +2,13 @@ import os
 import itertools
 from matching import get_matcher
 from matching.utils import get_default_device
-from matching.viz import plot_matches
 from pathlib import Path
 import matplotlib.pyplot as plt
 from my_logging import setup_logging
 import numpy as np
+from specular_mask import *
+from process_image_pairs import process_image_pairs
+import cv2
 
 ########################################################## CONFIG ##########################################################
 logger = setup_logging()
@@ -21,12 +23,8 @@ submaps_hard = [('118', '093'), ('118', '094'), ('118', '095')]
 # models = ['superpoint-lg', 'sift-lg','tiny-roma', 'sift-nn']
 # models = ['superpoint-lg', 'sift-lg']
 models = ['sift-nn']
-############################# CHOOSE DATASET #############################
-# dataset_type = 'wout_mask'
-dataset_type = 'specular_masked'
 ########################################################## CONFIG ##########################################################
-image_dir = Path(f'data/{dataset_type}')
-
+image_dir = Path(f'data')
 
 # Easy case
 if 'easy' in levels:
@@ -46,20 +44,10 @@ if 'easy' in levels:
         matcher = get_matcher(model_name, device=device)
 
         # Process each pair of images
+        logger.info(f'Starting model: {model_name}')
         for img_path0, img_path1 in pairs:
-            logger.info(f"Processing pair: {img_path0} and {img_path1} using {model_name}")
-            img0 = matcher.load_image(img_path0, resize=512)
-            img1 = matcher.load_image(img_path1, resize=512)
-
-            result = matcher(img0, img1)
-            if len(result['matched_kpts1']) == 0:
-                logger.info(f'No matches found for pair: {img_path0} and {img_path1} using {model_name} in easy level')
-                continue
-            plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
-            img0 = np.clip(img0, 0, 1)
-            img1 = np.clip(img1, 0, 1)
-            plot_matches(img0, img1, result, save_path=plot_path)
-            logger.info(f'Saved plot to {plot_path}')
+            
+            process_image_pairs(img_path0,img_path1, output_dir, model_name, matcher, logger)
 
 # Medium case
 if 'medium' in levels:
@@ -85,20 +73,7 @@ if 'medium' in levels:
 
             # Process each pair of images
             for img_path0, img_path1 in pairs:
-                logger.info(f"Processing pair: {img_path0} and {img_path1} using {model_name}")
-                img0 = matcher.load_image(img_path0, resize=512)
-                img1 = matcher.load_image(img_path1, resize=512)
-
-                result = matcher(img0, img1)
-                if len(result['matched_kpts1']) == 0:
-                    logger.info(f'No matches found for pair: {img_path0} and {img_path1} using {model_name} in medium level with {submap1} and {submap2}')
-                    continue
-                plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
-                img0 = np.clip(img0, 0, 1)
-                img1 = np.clip(img1, 0, 1)
-                plot_matches(img0, img1, result, save_path=plot_path)
-                logger.info(f'Saved plot to {plot_path}')
-
+                process_image_pairs(img_path0,img_path1, output_dir, model_name, matcher, logger)
 # Hard case
 if 'hard' in levels:
     logger.info('Starting hard case')
@@ -123,16 +98,5 @@ if 'hard' in levels:
 
             # Process each pair of images
             for img_path0, img_path1 in pairs:
-                logger.info(f"Processing pair: {img_path0} and {img_path1} using {model_name}")
-                img0 = matcher.load_image(img_path0, resize=512)
-                img1 = matcher.load_image(img_path1, resize=512)
-
-                result = matcher(img0, img1)
-                if len(result['matched_kpts1']) == 0:
-                    logger.info(f'No matches found for pair: {img_path0} and {img_path1} using {model_name} in hard level with {submap1} and {submap2}')
-                    continue
-                plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
-                img0 = np.clip(img0, 0, 1)
-                img1 = np.clip(img1, 0, 1)    
-                plot_matches(img0, img1, result, save_path=plot_path)
-                logger.info(f'Saved plot to {plot_path}')
+                process_image_pairs(img_path0,img_path1, output_dir, model_name, matcher, logger)
+logger.info('Finished running models')

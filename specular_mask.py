@@ -2,6 +2,9 @@ import cv2
 import numpy as np
 import os
 from pathlib import Path
+import matplotlib
+matplotlib.use('TkAgg')  # Set interactive backend
+import matplotlib.pyplot as plt
 
 
 def create_mask(frame_gray):
@@ -16,29 +19,95 @@ def create_mask(frame_gray):
     thresh = cv2.bitwise_and(thresh_bright, thresh_dark)
     return thresh
 
+def create_mask_normalized(frame_gray_norm):
+    """
+    Create a mask for specularities for images normalized to [0,1].
+    The bright threshold 220/255 (~0.86) is inverted and the dark threshold 10/255 (~0.04) is applied.
+    """
+    kernel = np.ones((5, 5), np.float32)
+    # Threshold for bright spots (inverted)
+    thresh_bright = cv2.threshold(frame_gray_norm, 210/255.0, 1, cv2.THRESH_BINARY_INV)[1]
+    thresh_bright = cv2.erode(thresh_bright, kernel, iterations=5)
+    # Threshold for dark spots
+    thresh_dark = cv2.threshold(frame_gray_norm, 10/255.0, 1, cv2.THRESH_BINARY)[1]
+    thresh_dark = cv2.erode(thresh_dark, kernel, iterations=3)
+    # Combine both masks
+    thresh = cv2.bitwise_and(thresh_bright, thresh_dark)
+    # Convert mask values from {0,1} to {0,255} as uint8
+    return (thresh * 255).astype(np.uint8)
 
-def process_images(input_dir, output_dir):
-    # Ensure the output directory exists
-    os.makedirs(output_dir, exist_ok=True)
+def is_in_mask(points, mask_points):
+    """
+    points: (K,2), mask_points: (N,2)
+    Returns a boolean array of shape (K,) where True if a point is in mask_points.
+    """
+    return np.any(np.all(points[:, None] == mask_points[None, :], axis=2), axis=1)
 
-    # Process each image in the input directory
-    for img_path in Path(input_dir).glob('*.png'):
-        # Read the image
-        img = cv2.imread(str(img_path))
-        # Convert to grayscale
-        frame_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        # Create the mask
-        mask = create_mask(frame_gray)
-        # Apply the mask to the image
-        masked_img = cv2.bitwise_and(img, img, mask=mask)
-        # Save the processed image
-        output_path = Path(output_dir) / img_path.name
-        cv2.imwrite(str(output_path), masked_img)
-        print(f'Saved processed image to {output_path}')
+def get_bgr_image(img):
+    """Convert a PyTorch tensor image (C,H,W) to a NumPy BGR image."""
+    return cv2.cvtColor(img.permute(1, 2, 0).cpu().numpy(), cv2.COLOR_RGB2BGR)
 
+def get_mask_and_masked_image(img_np):
+    """Return the mask and the masked image given a NumPy BGR image."""
+    img_gray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
+    mask = create_mask_normalized(img_gray)
+    masked_img = cv2.bitwise_and(img_np, img_np, mask=mask)
+    return mask, masked_img
 
-process_images('data/easy/095', 'data/specular_masked/easy/095')
-process_images('data/medium/093', 'data/specular_masked/medium/093')
-process_images('data/medium/094', 'data/specular_masked/medium/094')
-process_images('data/medium/095', 'data/specular_masked/medium/095')
-process_images('data/hard/118', 'data/specular_masked/hard/118')
+def filter_keypoints_by_mask(kpts, mask_points):
+    """
+    Given keypoints (N,2) and mask_points (M,2) in (col, row) order,
+    return a boolean array of valid keypoints not in the mask.
+    """
+    kpts_floor = np.floor(kpts).astype(int)
+    kpts_ceil  = np.ceil(kpts).astype(int)
+    valid = ~(is_in_mask(kpts_floor, mask_points) | is_in_mask(kpts_ceil, mask_points))
+    return valid
+
+def filter_keypoints_pair(kpts0, kpts1, mask0_points, mask1_points):
+    """
+    Filter a pair of keypoints arrays using the corresponding mask points.
+    Returns filtered keypoints0 and keypoints1.
+    """
+    valid0 = filter_keypoints_by_mask(kpts0, mask0_points)
+    valid1 = filter_keypoints_by_mask(kpts1, mask1_points)
+    valid = valid0 & valid1
+    return kpts0[valid], kpts1[valid]
+
+def filter_result(result, mask0_points, mask1_points):
+    """
+    Returns a new result dict with matched and inlier keypoints filtered 
+    using the provided mask points.
+    """
+    mkpts0, mkpts1 = filter_keypoints_pair(result['matched_kpts0'],
+                                             result['matched_kpts1'],
+                                             mask0_points, mask1_points)
+    ikpts0, ikpts1 = filter_keypoints_pair(result['inlier_kpts0'],
+                                             result['inlier_kpts1'],
+                                             mask0_points, mask1_points)
+    result_filtered = result.copy()
+    result_filtered['matched_kpts0'] = mkpts0
+    result_filtered['matched_kpts1'] = mkpts1
+    result_filtered['inlier_kpts0'] = ikpts0
+    result_filtered['inlier_kpts1'] = ikpts1
+    return result_filtered
+
+def get_mask_points_and_masked(img_np):
+    """
+    Given a BGR image (as NumPy array), compute its grayscale image, mask (using create_mask_normalized),
+    the masked image and return the mask zero points in (col, row) order along with the masked image.
+    """
+    # Convert the image to grayscale to create the mask
+    img_gray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
+    # Create the mask and apply it to the image
+    mask = create_mask_normalized(img_gray)
+    # Apply the mask to the image
+    masked_img = cv2.bitwise_and(img_np, img_np, mask=mask)
+    # Clip the masked image to [0,1] range
+    masked_img = np.clip(masked_img, 0, 1)
+    # Convert the masked image from BGR to RGB for plotting
+    masked_img = cv2.cvtColor(masked_img, cv2.COLOR_BGR2RGB)
+    # Get the mask zero points in (col, row) order
+    mask_zero = np.where(mask == 0)
+    mask_zero_points = np.column_stack((mask_zero[1], mask_zero[0]))
+    return mask_zero_points, masked_img

@@ -9,9 +9,6 @@ from my_logging import setup_logging
 import numpy as np
 import cv2
 from pathlib import PosixPath
-import matplotlib
-# matplotlib.use('TkAgg')  # Set interactive backend
-matplotlib.use('MacOSX')  # Set non-interactive backend
 from specular_mask import *  # imports create_mask_normalized and is_in_mask
 
 

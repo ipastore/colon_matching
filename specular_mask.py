@@ -2,9 +2,7 @@ import cv2
 import numpy as np
 import os
 from pathlib import Path
-import matplotlib
-matplotlib.use('TkAgg')  # Set interactive backend
-import matplotlib.pyplot as plt
+
 
 
 def create_mask(frame_gray):

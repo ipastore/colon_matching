@@ -39,6 +39,8 @@ def is_in_mask(points, mask_points):
     points: (K,2), mask_points: (N,2)
     Returns a boolean array of shape (K,) where True if a point is in mask_points.
     """
+    if points.size == 0:
+        return np.empty((0,), dtype=bool)
     return np.any(np.all(points[:, None] == mask_points[None, :], axis=2), axis=1)
 
 def get_bgr_image(img):

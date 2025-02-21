@@ -1,3 +1,8 @@
+# Weights
+weights/
+*.pth
+
+
 #Output and logs
 output/
 logs/

@@ -13,15 +13,18 @@ import cv2
 ########################################################## CONFIG ##########################################################
 logger = setup_logging()
 ############################# CHOOSE LEVELS #############################
-levels = ['easy','medium','hard']
+# levels = ['easy','medium','hard']
 # levels = ['medium','hard']
-# levels = ['easy']
+levels = ['easy']
 ############################# CHOOSE SUBMAPS #############################
 submaps_medium = [('093', '094'),('093', '095'), ('094', '095')]
 submaps_hard = [('118', '093'), ('118', '094'), ('118', '095')]
 ############################# CHOOSE MODELS #############################
-models = ['superpoint-lg', 'sift-lg','tiny-roma', 'sift-nn', 'gim-lg']
+# models = ['superpoint-lg', 'sift-lg','tiny-roma', 'sift-nn', 'gim-lg']
 # models = ['superpoint-lg', 'sift-lg']
+# models = ['sift-nn']
+# models = ['gim-lg']
+models = ['tiny-roma']
 # models = ['sift-nn']
 ########################################################## CONFIG ##########################################################
 image_dir = Path(f'data')
@@ -47,6 +50,7 @@ if 'easy' in levels:
         logger.info(f'Starting model: {model_name}')
         for img_path0, img_path1 in pairs:
             
+            #TODO: add mask0 and mask1 as parameters.
             process_image_pairs(img_path0,img_path1, output_dir, model_name, matcher, logger)
 
 # Medium case

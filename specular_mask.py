@@ -47,10 +47,11 @@ def get_bgr_image(img):
     """Convert a PyTorch tensor image (C,H,W) to a NumPy BGR image."""
     return cv2.cvtColor(img.permute(1, 2, 0).cpu().numpy(), cv2.COLOR_RGB2BGR)
 
+#
 def get_mask_and_masked_image(img_np):
     """Return the mask and the masked image given a NumPy BGR image."""
     img_gray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
-    mask = create_mask_normalized(img_gray)
+    mask = create_mask(img_gray)
     masked_img = cv2.bitwise_and(img_np, img_np, mask=mask)
     return mask, masked_img
 

@@ -2,7 +2,7 @@ from specular_mask import *
 from matching.viz import plot_matches
 import time
 
-
+#TODO: add mask0 and mask1 as parameters. Default none.
 def process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger):
             """
             Process pairs of images using the given matcher and save the resulting plots.
@@ -16,11 +16,13 @@ def process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, l
             img1_np = get_bgr_image(img1)
 
             # Get mask zero points and masked images for both images
+            #TODO: use get_mask_and_masked_image instead of get_mask_points_and_masked
             mask0_zero_points, masked_img0 = get_mask_points_and_masked(img0_np)
             mask1_zero_points, masked_img1 = get_mask_points_and_masked(img1_np)
 
             # Match the images and log time
             start = time.perf_counter()
+            #TODO: add parameter of mask0 and mask1
             result = matcher(img0, img1)
             end = time.perf_counter()
             logger.info(f'Matching took {end - start:.3f} seconds')

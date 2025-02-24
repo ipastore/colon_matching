@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from my_logging import setup_logging
 import numpy as np
 from specular_mask import *
-from process_image_pairs import process_image_pairs
+from process_image_pairs import *
 import cv2
 
 ########################################################## CONFIG ##########################################################
@@ -23,9 +23,10 @@ submaps_hard = [('118', '093'), ('118', '094'), ('118', '095')]
 # models = ['superpoint-lg', 'sift-lg','tiny-roma', 'sift-nn', 'gim-lg']
 # models = ['superpoint-lg', 'sift-lg']
 # models = ['sift-nn']
-# models = ['gim-lg']
-models = ['tiny-roma']
+models = ['gim-lg']
+# models = ['tiny-roma']
 # models = ['sift-nn']
+# models = ['superpoint-lg']
 ########################################################## CONFIG ##########################################################
 image_dir = Path(f'data')
 
@@ -51,7 +52,7 @@ if 'easy' in levels:
         for img_path0, img_path1 in pairs:
             
             #TODO: add mask0 and mask1 as parameters.
-            process_image_pairs(img_path0,img_path1, output_dir, model_name, matcher, logger)
+            process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, specular_mask=True)
 
 # Medium case
 if 'medium' in levels:
@@ -77,7 +78,7 @@ if 'medium' in levels:
 
             # Process each pair of images
             for img_path0, img_path1 in pairs:
-                process_image_pairs(img_path0,img_path1, output_dir, model_name, matcher, logger)
+                process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, specular_mask=True)
 # Hard case
 if 'hard' in levels:
     logger.info('Starting hard case')
@@ -102,6 +103,6 @@ if 'hard' in levels:
 
             # Process each pair of images
             for img_path0, img_path1 in pairs:
-                process_image_pairs(img_path0,img_path1, output_dir, model_name, matcher, logger)
+                process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, specular_mask=True)
                 
 logger.info('Finished running models')

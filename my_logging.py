@@ -5,7 +5,7 @@ import hashlib
 import os
 
 
-def setup_logging():
+def setup_logging(DEBUG):
     # Ensure the logs directory exists
     os.makedirs('logs', exist_ok=True)
 
@@ -16,14 +16,20 @@ def setup_logging():
 
     # Create console handler for debug logging
     console_handler = StreamHandler()
-    console_handler.setLevel(logging.DEBUG)
-    console_formatter = Formatter('%(asctime)s - %(message)s')
+    if DEBUG:
+        # With DEBUG enabled, include extra details in console logs.
+        console_handler.setLevel(logging.DEBUG)
+        console_formatter = Formatter('%(asctime)s - %(filename)s:%(lineno)d - %(message)s')
+    else:
+        # When DEBUG is false, use INFO level for console output.
+        console_handler.setLevel(logging.INFO)
+        console_formatter = Formatter('%(asctime)s - %(message)s')
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)
 
     # Create file handler for debug logging
-    debug_file_handler = FileHandler('logs/debug.log')
-    debug_file_handler.setLevel(logging.DEBUG)
+    debug_file_handler = FileHandler('logs/info.log')
+    debug_file_handler.setLevel(logging.INFO)
     debug_file_handler.setFormatter(console_formatter)
     logger.addHandler(debug_file_handler)
 
@@ -42,6 +48,15 @@ def setup_logging():
 
     info_file_handler.addFilter(NoMatchesFilter())
     logger.addHandler(info_file_handler)
+
+    # Optionally add an extra file handler for DEBUG output
+    if DEBUG:
+        extra_file_handler = FileHandler('logs/debug.log')
+        extra_file_handler.setLevel(logging.DEBUG)
+        extra_formatter = Formatter('%(asctime)s - %(filename)s:%(lineno)d - %(message)s')
+        extra_file_handler.setFormatter(extra_formatter)
+        logger.addHandler(extra_file_handler)
+        logger.debug("Extra DEBUG logging is enabled.")
 
     return logger
 

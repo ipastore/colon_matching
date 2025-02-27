@@ -1,34 +1,26 @@
 import os
 import itertools
 from matching import get_matcher
-from matching.utils import get_default_device
 from pathlib import Path
 import matplotlib.pyplot as plt
-from my_logging import setup_logging
 import numpy as np
 from specular_mask import *
 from process_image_pairs import *
 import cv2
+from config import *
+from my_logging import setup_logging
 
-########################################################## CONFIG ##########################################################
-logger = setup_logging()
-############################# CHOOSE LEVELS #############################
-# levels = ['easy','medium','hard']
-# levels = ['medium','hard']
-levels = ['easy']
-############################# CHOOSE SUBMAPS #############################
-submaps_medium = [('093', '094'),('093', '095'), ('094', '095')]
-submaps_hard = [('118', '093'), ('118', '094'), ('118', '095')]
-############################# CHOOSE MODELS #############################
-# models = ['superpoint-lg', 'sift-lg','tiny-roma', 'sift-nn', 'gim-lg']
-# models = ['superpoint-lg', 'sift-lg']
-# models = ['sift-nn']
-models = ['gim-lg']
-# models = ['tiny-roma']
-# models = ['sift-nn']
-# models = ['superpoint-lg']
-########################################################## CONFIG ##########################################################
-image_dir = Path(f'data')
+
+logger = setup_logging(DEBUG)
+
+logger.debug('Logging setup complete')
+logger.debug(f'Levels: {levels}')
+logger.debug(f'Submaps medium: {submaps_medium}')
+logger.debug(f'Submaps hard: {submaps_hard}')
+logger.debug(f'Models: {models}')
+logger.debug(f'Device: {device}')
+logger.debug(f'Root Image directory: {image_dir}')
+
 
 # Easy case
 if 'easy' in levels:
@@ -44,15 +36,13 @@ if 'easy' in levels:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize the matcher
-        device = get_default_device()
         matcher = get_matcher(model_name, device=device)
 
         # Process each pair of images
         logger.info(f'Starting model: {model_name}')
         for img_path0, img_path1 in pairs:
             
-            #TODO: add mask0 and mask1 as parameters.
-            process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, specular_mask=True)
+            process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking)
 
 # Medium case
 if 'medium' in levels:
@@ -73,12 +63,12 @@ if 'medium' in levels:
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # Initialize the matcher
-            device = get_default_device()
             matcher = get_matcher(model_name, device=device)
 
             # Process each pair of images
             for img_path0, img_path1 in pairs:
-                process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, specular_mask=True)
+                process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking)
+
 # Hard case
 if 'hard' in levels:
     logger.info('Starting hard case')
@@ -98,11 +88,10 @@ if 'hard' in levels:
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # Initialize the matcher
-            device = get_default_device()
             matcher = get_matcher(model_name, device=device)
 
             # Process each pair of images
             for img_path0, img_path1 in pairs:
-                process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, specular_mask=True)
+                process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking)
                 
 logger.info('Finished running models')

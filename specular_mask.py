@@ -170,85 +170,6 @@ def get_mask_points_and_masked(img_np):
     mask_zero_points = np.column_stack((mask_zero[1], mask_zero[0]))
     return mask_zero_points, masked_img
 
-# #TODO: tidy up
-# def filter_image_feats_with_mask(img: torch.Tensor | np.ndarray, mask: torch.Tensor | np.ndarray,
-#                                  kpt: torch.Tensor | np.ndarray | tuple, desc: torch.Tensor | np.ndarray| tuple,
-#                                  logger=None) -> tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray]:
-#     """
-#     This function accepts inputs as either torch.Tensor, np.ndarray, or tuple (for keypoints as cv2.KeyPoint)
-#     and returns outputs in the same type. It filters the feature keypoints and descriptors using a mask,
-#     ensuring the sizes of the image and mask are compatible.
-#     """
-#     feat_numpy_tuple= False
-#     device = get_default_device()
-
-#     if logger: 
-#         logger.debug("Starting filter_image_feats_with_mask")
-#         logger.debug(f'img type: {type(img)}; img shape: {img.shape}; dtype: {img.dtype}')
-#         logger.debug(f'mask type: {type(mask)}; mask shape: {mask.shape}; dtype: {mask.dtype}')
-#         logger.debug(f'kpt type: {type(kpt)}; kpt shape: {kpt.shape if isinstance(kpt, torch.Tensor) else len(kpt)}')
-#         logger.debug(f'desc type: {type(desc)}; desc shape: {desc.shape if isinstance(desc, torch.Tensor) else len(desc)}')
-    
-#     # Ensure mask is a torch.Tensor with batch dimension.
-#     if isinstance(mask, np.ndarray):
-#         mask = torch.from_numpy(mask).unsqueeze(0)
-#     # Convert image if provided as np.ndarray.
-#     if isinstance(img, np.ndarray):
-#         img = torch.from_numpy(img).unsqueeze(0)
-
-#     # Handle keypoints provided as a tuple of cv2.KeyPoint.
-#     if isinstance(kpt, (tuple, list)) and len(kpt) > 0 and hasattr(kpt[0], 'pt'):
-#         new_kpt = np.array([kp.pt for kp in kpt], dtype=np.float32)
-#         # new_kpt = new_kpt[:, [1, 0]]  # Convert (x,y) to (col,row) order
-#         kpt = torch.from_numpy(new_kpt).unsqueeze(0).to(device)
-#         feat_numpy_tuple = True
-#         if isinstance(desc, np.ndarray):
-#             desc = torch.from_numpy(desc).unsqueeze(0).to(device)
-#         elif isinstance(desc, (tuple, list)):
-#             desc = torch.tensor(desc).unsqueeze(0).to(device)
-#     elif isinstance(kpt, np.ndarray) and isinstance(desc, np.ndarray):
-#         kpt = torch.from_numpy(kpt).unsqueeze(0).to(device)
-#         desc = torch.from_numpy(desc).unsqueeze(0).to(device)
-#         feat_numpy_tuple = True
-#     else:
-#         kpt = kpt.to(device)
-#         desc = desc.to(device)
-    
-#     if logger: 
-#         #Print the max and the min of the keypoints for H in CHW
-#         logger.debug(f'kpt max[:,:,0]: {torch.max(kpt[:,:,0])}; kpt min: {torch.min(kpt[:,:,0])}')
-#         #Print the max and the min of the keypoints for W in CHW
-#         logger.debug(f'kpt[:,:,1] max: {torch.max(kpt[:,:,1])}; kpt min: {torch.min(kpt[:,:,1])}')
-        
-#     # Apply mask filtering
-#     assert img.shape[-2:] == mask.shape[-2:]
-#     mask_points = get_mask_points(mask)
-#     if logger:
-#         #Print the max and the min of the mask points for H in CHW
-#         logger.debug(f'Reordering mask points to get (col, row) order')
-#         logger.debug(f'mask_points[:,:,0] max: {torch.max(mask_points[:,:,0])}; mask_points min: {torch.min(mask_points[:,:,0])}')
-#         #Print the max and the min of the mask points for W in CHW
-#         logger.debug(f'mask_points max[:,:,1]: {torch.max(mask_points[:,:,1])}; mask_points min: {torch.min(mask_points[:,:,1])}')
-#         logger.debug(f'mask_points shape: {mask_points.shape}')
-    
-#     # ChecK: kpt and desc should be in col row order (x,y) (W, H)
-#     kpt_filtered, desc_filtered = filter_feats_by_mask(kpt, desc, mask_points, logger)
-    
-#     if logger:
-#         logger.debug(f'kpt_filtered shape: {kpt_filtered.shape}; desc_filtered shape: {desc_filtered.shape}')
-#         logger.debug(f'Filtered kpts: {kpt.shape[1]} -> {kpt_filtered.shape[1]}')
-#         logger.debug(f'kpt_filtered.device: {kpt_filtered.device}; desc_filtered.device: {desc_filtered.device}')
-
-#     # Convert back to numpy if the input was a tuple of cv2.KeyPoint
-#     if feat_numpy_tuple:
-#         kpt_filtered = [cv2.KeyPoint(x=float(pt[0]), y=float(pt[1]), size=1) for pt in kpt_filtered.squeeze(0).cpu().numpy()]
-#         desc_filtered = desc_filtered.squeeze(0).cpu().numpy()
-#         if logger:
-#             logger.debug(f'kpt_filtered.device: cpu ; desc_filtered.device: cpu')
-#             logger.debug(f'Converted to numpy: kpt_filtered shape: {len(kpt_filtered)}; desc_filtered shape: {desc_filtered.shape}')
-
-#     return kpt_filtered, desc_filtered
-
 # A helper for converting cv2.KeyPoint list/tuple to tensor.
 def keypoints_to_tensor(kpts, device):
     pts = np.array([kp.pt for kp in kpts], dtype=np.float32)
@@ -268,7 +189,7 @@ def get_dtype_of_collection(collection):
         else:
             return type(first_element)
     
-
+#TODO: Old, to be replaced by filter_feat_dict_with_mask. But still implemented in gim-lg, and sift-nn
 def filter_image_feats_with_mask(img, mask, kpt, desc, logger=None):
     """
     Filter feature keypoints and descriptors using a mask.
@@ -326,7 +247,7 @@ def filter_image_feats_with_mask(img, mask, kpt, desc, logger=None):
     mask_points = get_mask_points(mask_tensor)
     if logger:
         logger.debug(f"mask_points shape: {mask_points.shape}")
-    
+        
     #TODO: Check if any max of kpts are greater thant the img coordinates. WARNING to DEBUG and change coordinates!
         kpt_0_max = torch.max(kpt_tensor[:,:,0])
         kpt_1_max = torch.max(kpt_tensor[:,:,1])
@@ -360,3 +281,149 @@ def filter_image_feats_with_mask(img, mask, kpt, desc, logger=None):
         desc_filtered = to_numpy(desc_filtered.squeeze(0))
     
     return kpt_filtered, desc_filtered
+
+def filter_feat_dict_with_mask(img, mask, feats, logger=None):
+    """
+    Filter an entire features dictionary using a mask.
+    
+    Args:
+        img: Image as torch.Tensor or np.ndarray
+        mask: Mask as torch.Tensor or np.ndarray
+        feats: Dictionary containing feature data with required keys 'keypoints' and 'descriptors'
+        logger: Optional logger for debugging
+        
+    Returns:
+        Dictionary with all features filtered according to the mask
+    """
+    device = get_default_device()
+    as_cv2_keypoints = False
+    
+    if logger:
+        logger.debug("Starting filter_feat_dict_with_mask")
+        logger.debug(f'img type: {type(img)}; img shape: {img.shape}')
+        logger.debug(f'mask type: {type(mask)}; mask shape: {mask.shape}')
+        logger.debug(f'feats keys: {feats.keys()}')
+    
+    # Check required keys
+    required_keys = ['keypoints', 'descriptors']
+    for key in required_keys:
+        if key not in feats:
+            msg = f"Feature dict must contain '{key}' key"
+            if logger:
+                logger.error(msg)
+            raise ValueError(msg)
+    
+    # Convert img and mask to torch tensors
+    if isinstance(img, np.ndarray):
+        img_tensor = to_tensor(img, device=device).unsqueeze(0)
+    else:
+        img_tensor = img.to(device)
+        
+    if isinstance(mask, np.ndarray):
+        mask_tensor = to_tensor(mask, device=device).unsqueeze(0)
+    else:
+        mask_tensor = mask.to(device)
+    
+    # Process keypoints - detect cv2.KeyPoint format
+    kpts = feats['keypoints']
+    if isinstance(kpts, (list, tuple)) and len(kpts) > 0 and hasattr(kpts[0], 'pt'):
+        as_cv2_keypoints = True
+        kpt_tensor = keypoints_to_tensor(kpts, device)
+        num_keypoints = len(kpts)
+    elif isinstance(kpts, np.ndarray):
+        kpt_tensor = to_tensor(kpts, device=device).unsqueeze(0)
+        num_keypoints = kpts.shape[0]
+    else:
+        kpt_tensor = kpts.to(device)
+        num_keypoints = kpts.shape[1] if kpts.ndim > 1 else kpts.shape[0]
+        
+    if logger:
+        logger.debug(f"Number of keypoints: {num_keypoints}")
+        
+    # Get mask points
+    mask_points = get_mask_points(mask_tensor)
+    if logger:
+        logger.debug(f'mask_points shape: {mask_points.shape}')
+        
+    # Get valid indices from keypoints filtering
+    kpts_unbatched = kpt_tensor.squeeze(0)
+    kpts_floor = torch.floor(kpts_unbatched).long()
+    kpts_ceil = torch.ceil(kpts_unbatched).long()
+    valid = ~(is_in_mask(kpts_floor, mask_points.squeeze(0), logger) | 
+              is_in_mask(kpts_ceil, mask_points.squeeze(0), logger))
+    
+    # Prepare result dictionary
+    filtered_feats = {}
+    
+    # Apply filtering to each key in the dictionary
+    for key, value in feats.items():
+
+        # Handle keypoints specifically
+        if key == 'keypoints':
+            if as_cv2_keypoints:
+                filtered_value = [kpts[i] for i in range(len(kpts)) if valid[i]]
+            elif isinstance(value, np.ndarray):
+                filtered_value = value[valid.cpu().numpy()]
+            else:
+                if value.ndim == 3 and value.shape[0] == 1:  # Shape [1, N, ...]
+                    filtered_value = value[:, valid]
+                else:  # Shape [N, ...]
+                    filtered_value = value[valid]
+            if logger:
+                logger.debug(f"Filtering key {key}.")
+                
+        # For all other items, check if they have the same length as keypoints
+        else:
+            matches_keypoint_dim = False
+            
+            if isinstance(value, (list, tuple)):
+                matches_keypoint_dim = len(value) == num_keypoints
+                if matches_keypoint_dim:
+                    filtered_value = [value[i] for i in range(len(value)) if valid[i]]
+                else:
+                    filtered_value = value
+                    
+            elif isinstance(value, np.ndarray):
+                matches_keypoint_dim = value.shape[0] == num_keypoints
+                if matches_keypoint_dim:
+                    filtered_value = value[valid.cpu().numpy()]
+                else:
+                    filtered_value = value
+                    
+            elif isinstance(value, torch.Tensor):
+                if value.ndim > 1 and value.shape[0] == 1:
+                    matches_keypoint_dim = value.shape[1] == num_keypoints
+                    if matches_keypoint_dim:
+                        filtered_value = value[:, valid]
+                    else:
+                        filtered_value = value
+                else:
+                    matches_keypoint_dim = value.shape[0] == num_keypoints
+                    if matches_keypoint_dim:
+                        filtered_value = value[valid]
+                    else:
+                        filtered_value = value
+            else:
+                # Unknown type, skip filtering
+                filtered_value = value
+                
+            # Log whether item was filtered based on dimensionality
+            if logger:
+                if matches_keypoint_dim:
+                    logger.debug(f"Filtering key {key} as it matches keypoint dimension")
+                else:
+                    logger.debug(f"Skipping filtering for key {key} as it doesn't match keypoint dimension")
+        
+        filtered_feats[key] = filtered_value
+    
+    # Log results
+    if logger:
+        num_filtered = (len(filtered_feats['keypoints']) if isinstance(filtered_feats['keypoints'], (list, tuple)) else 
+                       filtered_feats['keypoints'].shape[0] if isinstance(filtered_feats['keypoints'], np.ndarray) else 
+                       filtered_feats['keypoints'].shape[1])
+        
+        logger.debug(f"Original features count: {num_keypoints}")
+        logger.debug(f"Filtered features count: {num_filtered}")
+        logger.debug(f"Removed {num_keypoints - num_filtered} features")
+        
+    return filtered_feats

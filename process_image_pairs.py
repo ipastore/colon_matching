@@ -1,10 +1,6 @@
 from specular_mask import *
 from matching.viz import plot_matches
 import time
-import matplotlib
-# matplotlib.use('TkAgg')  # Set interactive backend
-matplotlib.use('MacOSX')  # Set non-interactive backend
-import matplotlib.pyplot as plt
 
 #TODO: add mask0 and mask1 as parameters. Default none.
 def process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize = None, masking=False):

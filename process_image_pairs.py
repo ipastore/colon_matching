@@ -1,9 +1,9 @@
 from specular_mask import *
-from matching.viz import plot_matches
+from matching.viz import plot_matches, plot_kpts_2_images
 import time
 
 #TODO: add mask0 and mask1 as parameters. Default none.
-def process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize = None, masking=False):
+def process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger = None, resize = None, masking=False, plot_kpts=False):
             """
             Process pairs of images using the given matcher and save the resulting plots.
             """
@@ -52,12 +52,32 @@ def process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, l
                 plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
                 plot_matches(masked_img0, masked_img1, result, save_path=plot_path)
                 end = time.perf_counter()
-                logger.debug(f'Plotting took {end - start:.3f} seconds')
+                logger.debug(f'Plotting matches took {end - start:.3f} seconds')
                 logger.debug(f'Saved plot to {plot_path}')
+
+                if plot_kpts: 
+                    start = time.perf_counter()
+                    plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}_keypoints.png'
+                    plot_kpts_2_images(masked_img0, masked_img1, result, save_path=plot_path)
+                    end = time.perf_counter()
+                    logger.debug(f'Plotting keypoints took {end - start:.3f} seconds')
+                    logger.debug(f'Saved plot to {plot_path}')
+
             else:
                 start = time.perf_counter()
                 plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
                 plot_matches(img0, img1, result, save_path=plot_path)
                 end = time.perf_counter()
                 logger.debug(f'Plotting took {end - start:.3f} seconds')
-                logger.debug(f'Saved plot to {plot_path}') 
+                logger.debug(f'Saved plot to {plot_path}')
+
+                if plot_kpts:
+                    start = time.perf_counter()
+                    plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}_keypoints.png'
+                    plot_kpts_2_images(img0, img1, result, save_path=plot_path)
+                    end = time.perf_counter()
+                    logger.debug(f'Plotting keypoints took {end - start:.3f} seconds')
+                    logger.debug(f'Saved plot to {plot_path}')
+
+              
+            return result

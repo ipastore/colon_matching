@@ -7,7 +7,7 @@ import numpy as np
 from specular_mask import *
 from process_image_pairs import *
 import cv2
-from config import *
+from config_easy_medium_hard import *
 from my_logging import setup_logging
 
 
@@ -42,7 +42,7 @@ if 'easy' in levels:
         logger.info(f'Starting model: {model_name}')
         for img_path0, img_path1 in pairs:
             
-            process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking)
+            result = process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking, plot_kpts)
 
 # Medium case
 if 'medium' in levels:
@@ -67,7 +67,7 @@ if 'medium' in levels:
 
             # Process each pair of images
             for img_path0, img_path1 in pairs:
-                process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking)
+                result = process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking, plot_kpts)
 
 # Hard case
 if 'hard' in levels:
@@ -92,6 +92,6 @@ if 'hard' in levels:
 
             # Process each pair of images
             for img_path0, img_path1 in pairs:
-                process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking)
+                result = process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking, plot_kpts)
                 
 logger.info('Finished running models')

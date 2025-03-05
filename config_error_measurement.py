@@ -1,24 +1,26 @@
 from pathlib import Path
 from matching.utils import get_default_device
 
+
+seq = "seq_001"
+submap = "31"
+
+# image0_name = 'out12557.png'
+# image1_name = 'out12575.png'
+image0_name = 'out12632.png'
+image1_name = 'out12656.png'
+
+device = get_default_device()
+
 ############################# Logging ############################# 
 DEBUG = True  # Global debug flag. Set to False to disable extra debug logging.
-############################# CHOOSE LEVELS #############################
-# levels = ['easy','medium','hard']
-# levels = ['medium','hard']
-levels = ['easy']
-############################# CHOOSE SUBMAPS #############################
-submaps_medium = [('093', '094'),('093', '095'), ('094', '095')]
-submaps_hard = [('118', '093'), ('118', '094'), ('118', '095')]
 ############################# CHOOSE MODELS #############################
-# models = ['superpoint-lg', 'sift-lg','tiny-roma', 'sift-nn', 'gim-lg']
-# models = ['superpoint-lg', 'sift-lg']
-# models = ['sift-nn']
-# models = ['gim-lg']
-# models = ['tiny-roma']
-# models = ['sift-lg']
-models = ['superpoint-lg']
-# models = ['roma']
+# model_name = 'sift-nn'
+# model_name = 'gim-lg'
+# model_name = 'tiny-roma'
+# model_name = 'sift-lg'
+model_name = 'superpoint-lg'
+# model_name = 'roma'
 ############################# CHOOSE DEVICE #############################
 device = get_default_device()
 ############################# CHOOSE IMAGE DIRECTORY #############################

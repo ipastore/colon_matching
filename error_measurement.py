@@ -1,96 +1,94 @@
 import pycolmap
-import numpy as np
-from process_image_pairs import process_image_pairs
-from matching.utils import get_default_device
 from matching import get_matcher
+from specular_mask import *
+from process_image_pairs import *
 from pathlib import Path
-import cv2
+from colmap_opencv_helpers import *
+from config_error_measurement import *
+from my_logging import setup_logging
+import numpy as np
 
 
-
-def get_relative_pose(R0, t0, R1, t1):
-    """ Compute the relative pose (R, t) from COLMAP. New reference frame is image1 """
-    R_rel = R0.T @ R1  
-    t_rel = R0.T @ (t1 - t0)  
-    return R_rel, t_rel
-
-def load_R_t(image_id, reconstruction):
-    """ Load rotation matrix and translation vector for a given image from COLMAP reconstruction """
-    image = reconstruction.images[image_id]
-
-    # Convert COLMAP's quaternion + translation to a rotation matrix
-    R = image.cam_from_world.rotation.matrix()
-    t = image.cam_from_world.translation
-
-    return R, t
-
-def estimate_relative_pose(mkpts0, mkpts1, K):
-    """
-    Estimate relative pose (R, t) from matched keypoints using the essential matrix.
-    :param mkpts0: Matched keypoints in image 1 (Nx2 array)
-    :param mkpts1: Matched keypoints in image 2 (Nx2 array)
-    :param K: Camera intrinsic matrix
-    :return: Estimated rotation (R) and translation (t)
-    """
-    E, _ = cv2.findEssentialMat(mkpts0, mkpts1, K, method=cv2.RANSAC, prob=0.999, threshold=1.0)
-    _, R, t, _ = cv2.recoverPose(E, mkpts0, mkpts1, K)
-    return R, t
-
-def load_camera_intrinsics(image_id, reconstruction):
-    """ Load camera intrinsics from COLMAP reconstruction """
-    image = reconstruction.images[image_id]
-    camera = reconstruction.cameras[image.camera_id]
-    K = np.array([[camera.params[0], 0, camera.params[2]],
-                  [0, camera.params[1], camera.params[3]],
-                  [0, 0, 1]])
-    return K
-
-def load_image_name_image_id_dict(reconstruction):
-    """ Get image ID from image name """
-    image_ids = {image.name: image_id for image_id, image in reconstruction.images.items()}
-    return image_ids
-
+logger = setup_logging(DEBUG)
 
 # Define the paths
-sparse_model_dir = Path(f'data/seq_001/33/sparse/0')
-root_image_dir = Path(f'data/seq_001/33/img_train')
+sparse_model_dir = Path(f'data/{seq}/sparse/{submap}')
+root_image_dir = Path(f'data/{seq}/img_train')
 
 # Load the COLMAP reconstruction
 reconstruction = pycolmap.Reconstruction(sparse_model_dir)
 
-# Load dict
-image_name_id = load_image_name_image_id_dict(reconstruction)
+#Prints peeks of the reconstruction
+# Print some basic information to verify the reconstruction
+print(f"Number of images: {len(reconstruction.images)}")
+print(f"Number of 3D points: {len(reconstruction.points3D)}")
 
-#Load image_ids
-image0_name = 'image0.png'
-image1_name = 'image1.png'
-image0_id = image_name_id[image0_name]
-image1_id = image_name_id[image1_name]
+# Print the first few images
+for image_id, image in list(reconstruction.images.items())[:5]:
+    print(f"Image ID: {image_id}, Camera ID: {image.camera_id}, Name: {image.name}")
 
-# Get COLMAP's relative pose
-R0, t0 = load_R_t(image0_id, reconstruction)
-R1, t1 = load_R_t(image1_id, reconstruction)
-R_colmap, t_colmap = get_relative_pose(R0, t0, R1, t1)
+# Print the first few cameras
+for camera_id, camera in list(reconstruction.cameras.items())[:5]:
+    print(f"Camera ID: {camera_id}, Model: {camera.model}, Params: {camera.params}")
+
+
+image0 = reconstruction.find_image_with_name(image0_name)
+image1 = reconstruction.find_image_with_name(image1_name)
+
+absolute_pose0 = image0.cam_from_world
+absolute_pose1 = image1.cam_from_world
+
+R01_colmap, t01_colmap = compute_relative_pose(absolute_pose0, absolute_pose1)
 
 # Print COLMAP relative pose
-print("COLMAP Relative Rotation:\n", R_colmap)
-print("COLMAP Relative Translation:\n", t_colmap)
+print("COLMAP Relative Rotation:\n", R01_colmap)
+print("COLMAP Relative Translation:\n", t01_colmap)
 
 ### MATCHER ####
-logger = None
-resize = None
-masking = True
-model_name = 'superpoint-lg'
-device = get_default_device()
 matcher = get_matcher(model_name, device=device)
-img0_path = root_image_dir + image0_name
-img1_path = root_image_dir + image1_name
+img0_path = root_image_dir / image0_name
+img1_path = root_image_dir / image1_name
 output_dir = Path(f'output/error_measurement')
 output_dir.mkdir(parents=True, exist_ok=True)
 
-result = process_image_pairs(img0_path, img1_path, output_dir, model_name, matcher, logger = logger, resize = resize, masking = masking)
+result = process_image_pairs(img0_path, img1_path, output_dir, model_name, matcher, logger = logger, resize = resize, masking = masking, plot_kpts=plot_kpts)
+
+if len(result['matched_kpts0']) < 5:
+    print("Not enough matches found")
+    exit()
 
 mkpts0 = result['matched_kpts0']
 mkpts1 = result['matched_kpts1']
-K = load_camera_intrinsics(image0_id, reconstruction)
-R_est, t_est = estimate_relative_pose(mkpts0, mkpts1, K)
+
+# Get camera intrinsics from pycolmap to estimate the relative pose with pycolmap
+# Retrieve cameras from COLMAP
+camera0 = reconstruction.camera(image0.camera_id)
+camera1 = reconstruction.camera(image1.camera_id)
+
+# Convert mkpts to COLMAP coordinates
+corrected_mkpts0 = adapt_mkpts_to_colmap(mkpts0)
+corrected_mkpts1 = adapt_mkpts_to_colmap(mkpts1)
+
+# Compute E matrix
+result_colmap = pycolmap.estimate_essential_matrix(corrected_mkpts0, corrected_mkpts1, camera0, camera1)
+
+R01_est = result_colmap['cam2_from_cam1'].rotation.matrix()
+t01_est = result_colmap['cam2_from_cam1'].translation
+
+# rotation error
+rot_err = rotation_error_deg(R01_colmap, R01_est)
+# translation error
+trans_err = translation_error_m(t01_colmap, t01_est)
+
+# In a multi-pair scenario, store in lists
+rot_errs = [rot_err]
+trans_errs = [trans_err]
+
+# 3) mAA
+thresholds_r = np.linspace(1, 10, 10)
+thresholds_t = np.geomspace(0.2, 5, 10)
+my_mAA = compute_mAA(rot_errs, trans_errs, thresholds_r, thresholds_t)
+
+print(f"Rotation error (deg): {rot_err:.3f}")
+print(f"Translation error (colmap scale): {trans_err:.3f}")
+print(f"mAA: {my_mAA:.3f}")

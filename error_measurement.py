@@ -44,8 +44,31 @@ R01_colmap, t01_colmap = compute_relative_pose(absolute_pose0, absolute_pose1)
 print("COLMAP Relative Rotation:\n", R01_colmap)
 print("COLMAP Relative Translation:\n", t01_colmap)
 
+############################# Matcher Hyperparameters #############################
+# Parameters for SuperPoint extractor and LightGlue matcher
+matcher_kwargs = {
+    'detection_threshold': 0.001,  # SuperPoint keypoint detection threshold
+    'max_num_keypoints': 2048,     # Maximum number of keypoints to detect
+    'filter_threshold': 0.1 ,       # LightGlue matching threshold
+    "depth_confidence": 0.95,        # early stopping, disable with -1 / 0.95
+    "width_confidence": 0.99          # point pruning, disable with -1 / 0.99
+}
+
+############################# RANSAC #############################
+#RANSAC it´s not used in the current implementation (we could bypass it)
+ransac_kwargs = {
+    'ransac_reproj_thresh': 0.0, 
+    'ransac_conf': 0.0, 
+    'ransac_iters': 0
+}
+
 ### MATCHER ####
-matcher = get_matcher(model_name, device=device)
+# Using superpoint-lg instead of the generic model_name
+matcher = get_matcher(model_name, device=device, **matcher_kwargs, **ransac_kwargs)
+
+# logger.debug(f"Extractor conf: {matcher.extractor.conf}")
+# logger.debug(f"Matcher conf: {matcher.matcher.conf}")
+
 img0_path = root_image_dir / image0_name
 img1_path = root_image_dir / image1_name
 output_dir = Path(f'output/error_measurement')
@@ -70,6 +93,9 @@ corrected_mkpts0 = adapt_mkpts_to_colmap(mkpts0)
 corrected_mkpts1 = adapt_mkpts_to_colmap(mkpts1)
 
 # Compute E matrix
+#TODO: choose RANSAC options
+# estimation_options = pycolmap.RANSACOptions()
+
 result_colmap = pycolmap.estimate_essential_matrix(corrected_mkpts0, corrected_mkpts1, camera0, camera1)
 
 R01_est = result_colmap['cam2_from_cam1'].rotation.matrix()
@@ -78,7 +104,7 @@ t01_est = result_colmap['cam2_from_cam1'].translation
 # rotation error
 rot_err = rotation_error_deg(R01_colmap, R01_est)
 # translation error
-trans_err = translation_error_m(t01_colmap, t01_est)
+trans_err = translation_error(t01_colmap, t01_est)
 
 # In a multi-pair scenario, store in lists
 rot_errs = [rot_err]
@@ -86,7 +112,9 @@ trans_errs = [trans_err]
 
 # 3) mAA
 thresholds_r = np.linspace(1, 10, 10)
-thresholds_t = np.geomspace(0.2, 5, 10)
+thresholds_t = np.geomspace(0.2, 5, 10) #TODO: Check units and thresholds
+
+
 my_mAA = compute_mAA(rot_errs, trans_errs, thresholds_r, thresholds_t)
 
 print(f"Rotation error (deg): {rot_err:.3f}")

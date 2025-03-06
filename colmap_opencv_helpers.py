@@ -11,7 +11,7 @@ def compute_mAA(rot_errors_deg, trans_errors_m, thresholds_r, thresholds_t):
     - rot_errors_deg: [rot_err_1, rot_err_2, ...]
     - trans_errors_m: [trans_err_1, trans_err_2, ...]
     - thresholds_r:   e.g. [1,2,3,...,10] (deg)
-    - thresholds_t:   e.g. [0.2, 0.35, 0.6, 1, 2, 5] (meters)
+    - thresholds_t:   e.g. [0.2, 0.35, 0.6, 1, 2, 5]
 
     Return:
         float: average of the fraction of pairs that pass each threshold pair
@@ -34,7 +34,7 @@ def compute_mAA(rot_errors_deg, trans_errors_m, thresholds_r, thresholds_t):
     # The final mAA is the average accuracy across threshold pairs
     return np.mean(accuracies)
 
-def translation_error_m(t_colmap: np.ndarray, t_est: np.ndarray) -> float:
+def translation_error(t_colmap: np.ndarray, t_est: np.ndarray) -> float:
     """
     Compute translation error in meters between two translation vectors.
     Both must be in the same coordinate scale. 

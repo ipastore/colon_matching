@@ -18,7 +18,7 @@ def create_mask(frame_gray):
     thresh = cv2.bitwise_and(thresh_bright, thresh_dark)
     return thresh
 
-#TODO: Add bright thresh and dark thresh as parameters and modify the pipeline accordingly
+#TODO colon: Add bright thresh and dark thresh as parameters and modify the pipeline accordingly
 def create_mask_normalized(frame_gray_norm):
     """
     Create a mask for specularities for images normalized to [0,1].
@@ -61,16 +61,6 @@ def get_bgr_image(img):
     """Convert a PyTorch tensor image (C,H,W) to a NumPy BGR image."""
     return cv2.cvtColor(img.permute(1, 2, 0).cpu().numpy(), cv2.COLOR_RGB2BGR)
 
-#TODO: old, modified with an inline torch function within process_pairs.py
-def numpy_mask_to_tensor(mask_np: np.ndarray) -> torch.Tensor:
-    """
-    Convert a NumPy mask (2D array, dtype=np.uint8) to a torch tensor
-    with shape (1, H, W) and dtype=torch.uint8.
-    """
-    if mask_np.ndim == 2:
-        mask_np = np.expand_dims(mask_np, axis=0)  # shape: (1, H, W)
-    tensor_mask = torch.from_numpy(mask_np)
-    return tensor_mask 
 
 def get_mask_and_masked_image(img_np):
     """Return the mask and the masked image (in RGB) given a NumPy BGR image."""
@@ -118,58 +108,6 @@ def filter_feats_by_mask(kpts: torch.Tensor, desc: torch.Tensor, mask_points: to
     
     return kpts_filtered, desc_filtered
 
-
-# TODO: Old, for numpy arrays. Remove if not needed.
-def filter_keypoints_pair(kpts0, kpts1, mask0_points, mask1_points):
-    """
-    Filter a pair of keypoints arrays using the corresponding mask points.
-    Returns filtered keypoints0 and keypoints1.
-    """
-    valid0 = filter_keypoints_by_mask(kpts0, mask0_points)
-    valid1 = filter_keypoints_by_mask(kpts1, mask1_points)
-    valid = valid0 & valid1
-    return kpts0[valid], kpts1[valid]
-
-# TODO: Old, for numpy arrays. Remove if not needed.
-def filter_result(result, mask0_points, mask1_points):
-    """
-    Returns a new result dict with matched and inlier keypoints filtered 
-    using the provided mask points.
-    """
-    mkpts0, mkpts1 = filter_keypoints_pair(result['matched_kpts0'],
-                                             result['matched_kpts1'],
-                                             mask0_points, mask1_points)
-    ikpts0, ikpts1 = filter_keypoints_pair(result['inlier_kpts0'],
-                                             result['inlier_kpts1'],
-                                             mask0_points, mask1_points)
-    result_filtered = result.copy()
-    result_filtered['matched_kpts0'] = mkpts0
-    result_filtered['matched_kpts1'] = mkpts1
-    result_filtered['inlier_kpts0'] = ikpts0
-    result_filtered['inlier_kpts1'] = ikpts1
-    return result_filtered
-
-#TODO: Old, for numpy arrays. Remove if not needed.
-def get_mask_points_and_masked(img_np):
-    """
-    Given a BGR image (as NumPy array), compute its grayscale image, mask (using create_mask_normalized),
-    the masked image and return the mask zero points in (col, row) order along with the masked image.
-    """
-    # Convert the image to grayscale to create the mask
-    img_gray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
-    # Create the mask and apply it to the image
-    mask = create_mask_normalized(img_gray)
-    # Apply the mask to the image
-    masked_img = cv2.bitwise_and(img_np, img_np, mask=mask)
-    # Clip the masked image to [0,1] range
-    masked_img = np.clip(masked_img, 0, 1)
-    # Convert the masked image from BGR to RGB for plotting
-    masked_img = cv2.cvtColor(masked_img, cv2.COLOR_BGR2RGB)
-    # Get the mask zero points in (col, row) order
-    mask_zero = np.where(mask == 0)
-    mask_zero_points = np.column_stack((mask_zero[1], mask_zero[0]))
-    return mask_zero_points, masked_img
-
 # A helper for converting cv2.KeyPoint list/tuple to tensor.
 def keypoints_to_tensor(kpts, device):
     pts = np.array([kp.pt for kp in kpts], dtype=np.float32)
@@ -189,7 +127,7 @@ def get_dtype_of_collection(collection):
         else:
             return type(first_element)
     
-#TODO: Old, to be replaced by filter_feat_dict_with_mask. But still implemented in gim-lg, and sift-nn
+#TODO colon: Old, to be replaced by filter_feat_dict_with_mask. But still implemented in gim-lg, and sift-nn
 def filter_image_feats_with_mask(img, mask, kpt, desc, logger=None):
     """
     Filter feature keypoints and descriptors using a mask.
@@ -248,7 +186,6 @@ def filter_image_feats_with_mask(img, mask, kpt, desc, logger=None):
     if logger:
         logger.debug(f"mask_points shape: {mask_points.shape}")
         
-    #TODO: Check if any max of kpts are greater thant the img coordinates. WARNING to DEBUG and change coordinates!
         kpt_0_max = torch.max(kpt_tensor[:,:,0])
         kpt_1_max = torch.max(kpt_tensor[:,:,1])
         img_0_max = img_tensor.shape[-1]

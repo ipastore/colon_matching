@@ -2,12 +2,12 @@ from specular_mask import *
 from matching.viz import plot_matches, plot_kpts_2_images
 import time
 
-#TODO: add mask0 and mask1 as parameters. Default none.
 def process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger = None, resize = None, masking=False, plot_kpts=False):
             """
             Process pairs of images using the given matcher and save the resulting plots.
             """
             logger.info(f"Processing pair: {img_path0.stem} and {img_path1.stem} using {model_name}")
+            
             img0 = matcher.load_image(img_path0, resize=resize)
             img1 = matcher.load_image(img_path1, resize=resize)
             logger.debug(f'img0 shape: {img0.shape}')
@@ -21,7 +21,6 @@ def process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, l
 
             if masking:
                 
-                start = time.perf_counter()
                 # Get mask zero points and masked images for both images
                 mask0, masked_img0 = get_mask_and_masked_image(img0_np)
                 mask1, masked_img1 = get_mask_and_masked_image(img1_np)
@@ -33,14 +32,9 @@ def process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, l
                 # with shape (1, H, W) and dtype=torch.uint8.
                 mask0 = torch.from_numpy(mask0).unsqueeze(0)
                 mask1 = torch.from_numpy(mask1).unsqueeze(0)
-                end = time.perf_counter()
-                logger.debug(f'Mask generation took {end - start:.3f} seconds')
 
             # Match the images and log time
-            start = time.perf_counter()
             result = matcher(img0, img1, mask0=mask0, mask1=mask1, logger=logger)
-            end = time.perf_counter()
-            logger.debug(f'Matching took {end - start:.3f} seconds')
 
             # Check if any matches were found after filtering
             if len(result['matched_kpts1']) == 0:
@@ -48,36 +42,19 @@ def process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, l
                 return  # Skip this pair
             
             if masking:
-                start = time.perf_counter()
+                start_plotting = time.perf_counter()
                 plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
-                plot_matches(masked_img0, masked_img1, result, save_path=plot_path)
-                end = time.perf_counter()
-                logger.debug(f'Plotting matches took {end - start:.3f} seconds')
+                plot_matches(masked_img0, masked_img1, result, show_all_kpts=plot_kpts, save_path=plot_path)
+                end_plotting = time.perf_counter()
+                logger.debug(f'Plotting matches took {end_plotting - start_plotting:.3f} seconds')
                 logger.debug(f'Saved plot to {plot_path}')
-
-                if plot_kpts: 
-                    start = time.perf_counter()
-                    plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}_keypoints.png'
-                    plot_kpts_2_images(masked_img0, masked_img1, result, save_path=plot_path)
-                    end = time.perf_counter()
-                    logger.debug(f'Plotting keypoints took {end - start:.3f} seconds')
-                    logger.debug(f'Saved plot to {plot_path}')
 
             else:
-                start = time.perf_counter()
+                start_plotting = time.perf_counter()
                 plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
-                plot_matches(img0, img1, result, save_path=plot_path)
-                end = time.perf_counter()
-                logger.debug(f'Plotting took {end - start:.3f} seconds')
+                plot_matches(img0, img1, result, show_all_kpts=plot_kpts, save_path=plot_path)
+                end_plotting = time.perf_counter()
+                logger.debug(f'Plotting took {end_plotting - start_plotting:.3f} seconds')
                 logger.debug(f'Saved plot to {plot_path}')
-
-                if plot_kpts:
-                    start = time.perf_counter()
-                    plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}_keypoints.png'
-                    plot_kpts_2_images(img0, img1, result, save_path=plot_path)
-                    end = time.perf_counter()
-                    logger.debug(f'Plotting keypoints took {end - start:.3f} seconds')
-                    logger.debug(f'Saved plot to {plot_path}')
-
               
             return result

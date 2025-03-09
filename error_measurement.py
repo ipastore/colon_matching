@@ -132,8 +132,12 @@ try:
             logger.info(f"Skipping submap {submap} because it has less than 5 images after subsampling")
             continue
 
-        # Get all the pairs for the subsampled images  
-        pairs = list(itertools.combinations(images, 2))
+        # Sort images to ensure they're in sequential order
+        images.sort(key=lambda x: x.name)
+        
+        # Create pairs of sequential images instead of all combinations
+        pairs = [(images[i], images[i+1]) for i in range(len(images)-1)]
+        
         output_report_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}')
         output_report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -178,8 +182,43 @@ try:
                     plot_kpts=plot_kpts
                 )
 
-                if len(result['matched_kpts0']) < 5:
-                    logger.warning(f"Not enough matches found for {img0_path.stem} and {img1_path.stem}")
+                # Instead of skipping, add a high penalty error for pairs with too few matches
+                if result is None or len(result['matched_kpts0']) < 5:
+                    logger.warning(f"Not enough matches found or result is None for {img0_path.stem} and {img1_path.stem}. Adding penalty error values.")
+                    
+                    # Set maximum penalty values that will exceed all thresholds
+                    rot_err = 180.0  # Maximum possible rotation error in degrees
+                    trans_err = 1.0  # A high translation error value (normalized by diameter)
+                    
+                    # Add these high errors to the metrics
+                    submap_rot_errs.append(rot_err)
+                    submap_trans_errs.append(trans_err)
+                    
+                    pair_end_time = time.perf_counter()
+                    
+                    # Build a dictionary for this failed pair with penalty values
+                    pair_info = {
+                        "image0": image0_name_extension,
+                        "image1": image1_name_extension,
+                        "mkpts0": 0 if result is None else len(result['matched_kpts0']),
+                        "mkpts1": 0 if result is None else len(result['matched_kpts1']),
+                        "kpts0": 0 if result is None else len(result['all_kpts0']),
+                        "kpts1": 0 if result is None else len(result['all_kpts1']),
+                        "extractor_time": extractor_time if 'extractor_time' in locals() else 0.0,
+                        "filter_time": filter_time if 'filter_time' in locals() else 0.0,
+                        "matcher_time": match_time if 'match_time' in locals() else 0.0,
+                        "total_pair_time": pair_end_time - pair_start_time,
+                        "rot_error_deg": rot_err,
+                        "trans_error": trans_err,
+                        "failure_reason": "insufficient_matches"
+                    }
+                    pair_metrics.append(pair_info)
+                    
+                    # Push to global arrays with penalty values
+                    all_rot_errs.append(rot_err)
+                    all_trans_errs.append(trans_err)
+                    
+                    # Continue to the next pair
                     continue
 
                 # Extract sub-step times from the result
@@ -202,6 +241,49 @@ try:
                 #TODO colon: choose RANSAC options
                 # estimation_options = pycolmap.RANSACOptions()
                 result_colmap = pycolmap.estimate_essential_matrix(corrected_mkpts0, corrected_mkpts1, camera0, camera1)
+
+                # Similarly for essential matrix estimation failure, add penalty instead of skipping
+                if result_colmap is None:
+                    logger.warning(f"Essential matrix estimation failed for {img0_path.stem} and {img1_path.stem}. Adding penalty error values.")
+                    
+                    # Set maximum penalty values that will exceed all thresholds
+                    rot_err = 180.0  # Maximum possible rotation error in degrees
+                    trans_err = 1.0  # A high translation error value (normalized by diameter)
+                    
+                    # Add these high errors to the metrics
+                    submap_rot_errs.append(rot_err)
+                    submap_trans_errs.append(trans_err)
+                    
+                    pair_end_time = time.perf_counter()
+                    
+                    # Build a dictionary for this failed pair with penalty values
+                    pair_info = {
+                        "image0": image0_name_extension,
+                        "image1": image1_name_extension,
+                        "mkpts0": len(mkpts0),
+                        "mkpts1": len(mkpts1),
+                        "kpts0": len(result['all_kpts0']),
+                        "kpts1": len(result['all_kpts1']),
+                        "extractor_time": extractor_time,
+                        "filter_time": filter_time,
+                        "matcher_time": match_time,
+                        "total_pair_time": pair_end_time - pair_start_time,
+                        "rot_error_deg": rot_err,
+                        "trans_error": trans_err,
+                        "failure_reason": "essential_matrix_estimation_failed"
+                    }
+                    pair_metrics.append(pair_info)
+                    
+                    # Push to global arrays with penalty values
+                    all_pairs_extractor_times.append(extractor_time)
+                    all_pairs_filter_times.append(filter_time)
+                    all_pairs_matcher_times.append(match_time)
+                    all_pairs_total_times.append(pair_info["total_pair_time"])
+                    all_rot_errs.append(rot_err)
+                    all_trans_errs.append(trans_err)
+                    
+                    # Continue to the next pair
+                    continue
 
                 # Extract R and t from the essential matrix
                 R01_est = result_colmap['cam2_from_cam1'].rotation.matrix()

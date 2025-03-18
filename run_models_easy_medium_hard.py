@@ -5,22 +5,25 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from specular_mask import *
-from process_image_pairs import *
+from match_image_pairs import *
 import cv2
 from config_easy_medium_hard import *
-from my_logging import setup_logging
+from my_logging import setup_logging, debug_log
 
+############################# Logging ############################# 
+DEBUG = True  # Global debug flag. Set to False to disable extra debug logging.
+activated_debug_flags = {"match_image_pairs", "error_measurement"} #filter_image_pairs
+############################# Logging #############################
 
-logger = setup_logging(DEBUG)
+logger = setup_logging(DEBUG, activated_debug_flags)
 
-logger.debug('Logging setup complete')
-logger.debug(f'Levels: {levels}')
-logger.debug(f'Submaps medium: {submaps_medium}')
-logger.debug(f'Submaps hard: {submaps_hard}')
-logger.debug(f'Models: {models}')
-logger.debug(f'Device: {device}')
-logger.debug(f'Root Image directory: {image_dir}')
-
+debug_log(logger, 'easy_medium_hard', 'Logging setup complete')
+debug_log(logger, 'easy_medium_hard', f'Levels: {levels}')
+debug_log(logger, 'easy_medium_hard', f'Submaps medium: {submaps_medium}')
+debug_log(logger, 'easy_medium_hard', f'Submaps hard: {submaps_hard}')
+debug_log(logger, 'easy_medium_hard', f'Models: {models}')
+debug_log(logger, 'easy_medium_hard', f'Device: {device}')
+debug_log(logger, 'easy_medium_hard', f'Root Image directory: {image_dir}')
 
 # Easy case
 if 'easy' in levels:
@@ -42,7 +45,7 @@ if 'easy' in levels:
         logger.info(f'Starting model: {model_name}')
         for img_path0, img_path1 in pairs:
             
-            result = process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking, plot_kpts)
+            result = match_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking, plot_kpts)
 
 # Medium case
 if 'medium' in levels:
@@ -67,7 +70,7 @@ if 'medium' in levels:
 
             # Process each pair of images
             for img_path0, img_path1 in pairs:
-                result = process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking, plot_kpts)
+                result = match_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking, plot_kpts)
 
 # Hard case
 if 'hard' in levels:
@@ -92,6 +95,6 @@ if 'hard' in levels:
 
             # Process each pair of images
             for img_path0, img_path1 in pairs:
-                result = process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking, plot_kpts)
+                result = match_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger, resize, masking, plot_kpts)
                 
 logger.info('Finished running models')

@@ -4,7 +4,8 @@ import torch
 import os
 from pathlib import Path
 from matching.utils import get_default_device, to_tensor, to_numpy
-import logging
+from my_logging import debug_log
+
 
 def create_mask(frame_gray):
     # Create a mask to avoid detection in specularities in the image (bright spots)
@@ -36,7 +37,7 @@ def create_mask_normalized(frame_gray_norm):
     # Convert mask values from {0,1} to {0,255} as uint8
     return thresh.astype(np.uint8)
 
-def is_in_mask(points: torch.Tensor, mask_points: torch.Tensor, logger: logging.Logger=None) -> torch.Tensor:
+def is_in_mask(points: torch.Tensor, mask_points: torch.Tensor, logger=None) -> torch.Tensor:
     """
     Given points: (K,2) and mask_points: (N,2) (both in (col, row) order),
     returns a boolean tensor of shape (K,) where each element is True if the corresponding
@@ -87,7 +88,7 @@ def get_mask_points(mask: torch.Tensor) -> torch.Tensor:
     mask_points = pts[:, [1, 0]].unsqueeze(0)  # shape: (1, N, 2)
     return mask_points
 
-def filter_feats_by_mask(kpts: torch.Tensor, desc: torch.Tensor, mask_points: torch.Tensor, logger: logging.Logger=None) -> (torch.Tensor, torch.Tensor):
+def filter_feats_by_mask(kpts: torch.Tensor, desc: torch.Tensor, mask_points: torch.Tensor, logger = None) -> (torch.Tensor, torch.Tensor):
     """
     Given keypoints (1, N, 2), descriptors (1, N, D) and mask_points (1, M, 2) in (col, row) order,
     returns the filtered keypoints and descriptors using the same valid index mask.
@@ -138,13 +139,12 @@ def filter_image_feats_with_mask(img, mask, kpt, desc, logger=None):
     device = get_default_device()
     as_cv2_keypoints = False
 
-    if logger:
-        logger.debug("Starting filter_image_feats_with_mask")
-        logger.debug(f'img type: {type(img)}; img shape: {img.shape}; dtype: {img.dtype}')
-        logger.debug(f'mask type: {type(mask)}; mask shape: {mask.shape}; dtype: {mask.dtype}')
-        logger.debug(f'kpt type: {type(kpt)}; kpt shape: {kpt.shape if isinstance(kpt, torch.Tensor) else len(kpt)}; dtype: {get_dtype_of_collection(kpt)}')
-        logger.debug(f'desc type: {type(desc)}; desc shape: {desc.shape if isinstance(desc, torch.Tensor) else len(desc)}; dtype: {get_dtype_of_collection(desc)}')
-
+    debug_log(logger, "filter_image_feats_with_mask", "Starting filter_image_feats_with_mask")
+    debug_log(logger, "filter_image_feats_with_mask", f'img type: {type(img)}; img shape: {img.shape}; dtype: {img.dtype}')
+    debug_log(logger, "filter_image_feats_with_mask", f'mask type: {type(mask)}; mask shape: {mask.shape}; dtype: {mask.dtype}')
+    debug_log(logger, "filter_image_feats_with_mask", f'kpt type: {type(kpt)}; kpt shape: {kpt.shape if isinstance(kpt, torch.Tensor) else len(kpt)}; dtype: {get_dtype_of_collection(kpt)}')
+    debug_log(logger, "filter_image_feats_with_mask", f'desc type: {type(desc)}; desc shape: {desc.shape if isinstance(desc, torch.Tensor) else len(desc)}; dtype: {get_dtype_of_collection(desc)}')
+    
     # Convert img and mask to torch.Tensor, adding a batch dimension if needed.
     if isinstance(img, np.ndarray):
         img_tensor = to_tensor(img, device=device).unsqueeze(0)
@@ -174,17 +174,19 @@ def filter_image_feats_with_mask(img, mask, kpt, desc, logger=None):
         kpt_tensor = kpt.to(device)
         desc_tensor = desc.to(device)
 
-    if logger:
-        logger.debug(f"Converted keypoints tensor shape: {kpt_tensor.shape}")
-        logger.debug(f"Converted descriptors tensor shape: {desc_tensor.shape}")
-
+    debug_log(logger, "filter_image_feats_with_mask", f"Converted keypoints tensor shape: {kpt_tensor.shape}")
+    debug_log(logger, "filter_image_feats_with_mask", f"Converted descriptors tensor shape: {desc_tensor.shape}")
+    
     # Ensure the spatial dimensions of img and mask match.
     assert img_tensor.shape[-2:] == mask_tensor.shape[-2:], "Image and mask spatial dimensions must match"
 
     # Obtain mask points: Inside the coordinates of the mask_points to (x,y) (col,row) (W, H) order.
     mask_points = get_mask_points(mask_tensor)
-    if logger:
-        logger.debug(f"mask_points shape: {mask_points.shape}")
+    debug_log(logger, "filter_image_feats_with_mask", f"mask_points shape: {mask_points.shape}")
+
+    # Early check of the debug flag using the active flags stored on the logger.
+    active_flags = getattr(logger, 'active_debug_flags', set())
+    if "filter_image_feats_with_mask" in active_flags or "ALL" in active_flags:
         
         kpt_0_max = torch.max(kpt_tensor[:,:,0])
         kpt_1_max = torch.max(kpt_tensor[:,:,1])
@@ -193,24 +195,22 @@ def filter_image_feats_with_mask(img, mask, kpt, desc, logger=None):
         mask0_max = torch.max(mask_points[:,:,0])
         mask1_max = torch.max(mask_points[:,:,1])
 
-        if logger: 
-            if kpt_0_max > img_0_max or kpt_1_max > img_1_max or mask0_max > img_0_max or mask1_max > img_1_max:
-                logger.warning(f'img_0_max: {img_0_max}; img_1_max: {img_1_max}')
-                logger.warning(f'kpt_0_max: {kpt_0_max}; kpt_1_max: {kpt_1_max}')
-                logger.warning(f'mask0_max: {mask0_max}; mask1_max: {mask1_max}')
-                logger.warning(f'Check if the keypoints or maskpoints are in the right order (x,y) or (col,row)')
-            else:
-                logger.debug(f'img_0_max: {img_0_max}; img_1_max: {img_1_max}')
-                logger.debug(f'kpt_0_max: {kpt_0_max}; kpt_1_max: {kpt_1_max}')
-                logger.debug(f'mask0_max: {mask0_max}; mask1_max: {mask1_max}')
-                 
+        if kpt_0_max > img_0_max or kpt_1_max > img_1_max or mask0_max > img_0_max or mask1_max > img_1_max:
+            logger.warning(f'img_0_max: {img_0_max}; img_1_max: {img_1_max}')
+            logger.warning(f'kpt_0_max: {kpt_0_max}; kpt_1_max: {kpt_1_max}')
+            logger.warning(f'mask0_max: {mask0_max}; mask1_max: {mask1_max}')
+            logger.warning(f'Check if the keypoints or maskpoints are in the right order (x,y) or (col,row)')
+        else:
+            debug_log(logger, "filter_image_feats_with_mask", f'img_0_max: {img_0_max}; img_1_max: {img_1_max}')
+            debug_log(logger, "filter_image_feats_with_mask", f'kpt_0_max: {kpt_0_max}; kpt_1_max: {kpt_1_max}')
+            debug_log(logger, "filter_image_feats_with_mask", f'mask0_max: {mask0_max}; mask1_max: {mask1_max}')
+            
     # Filter features using your existing filtering function.
     kpt_filtered, desc_filtered = filter_feats_by_mask(kpt_tensor, desc_tensor, mask_points, logger)
     
-    if logger:
-        logger.debug(f"Filtered keypoints shape: {kpt_filtered.shape}")
-        logger.debug(f"Filtered descriptors shape: {desc_filtered.shape}")
-
+    debug_log(logger, "filter_image_feats_with_mask", f"Filtered keypoints shape: {kpt_filtered.shape}")
+    debug_log(logger, "filter_image_feats_with_mask", f"Filtered descriptors shape: {desc_filtered.shape}")
+    
     # Convert back to original format if keypoints were initially cv2.KeyPoint objects.
     # Inside both functions, the kpts and descs are sent to cpu
     if as_cv2_keypoints:
@@ -235,11 +235,10 @@ def filter_feat_dict_with_mask(img, mask, feats, logger=None):
     device = get_default_device()
     as_cv2_keypoints = False
     
-    if logger:
-        logger.debug("Starting filter_feat_dict_with_mask")
-        logger.debug(f'img type: {type(img)}; img shape: {img.shape}')
-        logger.debug(f'mask type: {type(mask)}; mask shape: {mask.shape}')
-        logger.debug(f'feats keys: {feats.keys()}')
+    debug_log(logger, "filter_feat_dict_with_mask", "Starting filter_feat_dict_with_mask")
+    debug_log(logger, "filter_feat_dict_with_mask", f'img type: {type(img)}; img shape: {img.shape}')
+    debug_log(logger, "filter_feat_dict_with_mask", f'mask type: {type(mask)}; mask shape: {mask.shape}')
+    debug_log(logger, "filter_feat_dict_with_mask", f'feats keys: {feats.keys()}')
     
     # Check required keys
     required_keys = ['keypoints', 'descriptors']
@@ -273,14 +272,12 @@ def filter_feat_dict_with_mask(img, mask, feats, logger=None):
     else:
         kpt_tensor = kpts.to(device)
         num_keypoints = kpts.shape[1] if kpts.ndim > 1 else kpts.shape[0]
-        
-    if logger:
-        logger.debug(f"Number of keypoints: {num_keypoints}")
-        
+    
+    debug_log(logger, "filter_feat_dict_with_mask",f"Number of keypoints: {num_keypoints}")
+
     # Get mask points
     mask_points = get_mask_points(mask_tensor)
-    if logger:
-        logger.debug(f'mask_points shape: {mask_points.shape}')
+    debug_log(logger, "filter_feat_dict_with_mask", f'mask_points shape: {mask_points.shape}')
         
     # Get valid indices from keypoints filtering
     kpts_unbatched = kpt_tensor.squeeze(0)
@@ -306,8 +303,8 @@ def filter_feat_dict_with_mask(img, mask, feats, logger=None):
                     filtered_value = value[:, valid]
                 else:  # Shape [N, ...]
                     filtered_value = value[valid]
-            if logger:
-                logger.debug(f"Filtering key {key}.")
+            debug_log(logger, "filter_feat_dict_with_mask", f"Filtering key {key}.")
+  
                 
         # For all other items, check if they have the same length as keypoints
         else:
@@ -344,13 +341,12 @@ def filter_feat_dict_with_mask(img, mask, feats, logger=None):
                 # Unknown type, skip filtering
                 filtered_value = value
                 
-            # Log whether item was filtered based on dimensionality
-            if logger:
-                if matches_keypoint_dim:
-                    logger.debug(f"Filtering key {key} as it matches keypoint dimension")
-                else:
-                    logger.debug(f"Skipping filtering for key {key} as it doesn't match keypoint dimension")
-        
+            #   Log whether item was filtered based on dimensionality
+            if matches_keypoint_dim:
+                debug_log(logger, "filter_feat_dict_with_mask", f"Filtering key {key} as it matches keypoint dimension")
+            else:
+                debug_log(logger, "filter_feat_dict_with_mask", f"Skipping filtering for key {key} as it doesn't match keypoint dimension")
+    
         filtered_feats[key] = filtered_value
     
     # Log results
@@ -358,9 +354,8 @@ def filter_feat_dict_with_mask(img, mask, feats, logger=None):
         num_filtered = (len(filtered_feats['keypoints']) if isinstance(filtered_feats['keypoints'], (list, tuple)) else 
                        filtered_feats['keypoints'].shape[0] if isinstance(filtered_feats['keypoints'], np.ndarray) else 
                        filtered_feats['keypoints'].shape[1])
-        
-        logger.debug(f"Original features count: {num_keypoints}")
-        logger.debug(f"Filtered features count: {num_filtered}")
-        logger.debug(f"Removed {num_keypoints - num_filtered} features")
+        debug_log(logger, "filter_feat_dict_with_mask", f"Original features count: {num_keypoints}")
+        debug_log(logger, "filter_feat_dict_with_mask", f"Filtered features count: {num_filtered}")
+        debug_log(logger, "filter_feat_dict_with_mask", f"Removed {num_keypoints - num_filtered} features")
         
     return filtered_feats

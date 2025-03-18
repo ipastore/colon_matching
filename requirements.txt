@@ -64,7 +64,7 @@ httpx==0.28.1
 huggingface-hub==0.29.0
 humanfriendly==10.0
 idna==3.10
--e git+https://github.com/ipastore/image-matching-models.git@bbcdf40f778a398bc65ca99198536b2818e38075#egg=image_matching_models&subdirectory=../../../utils/image-matching_models
+-e git+https://github.com/ipastore/image-matching-models.git@5ff776f4e9bc0bfa63f9e386f1197302124e173b#egg=image_matching_models&subdirectory=../../../utils/image-matching_models
 imageio==2.37.0
 imagesize==1.4.1
 ipykernel @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_908a9n7o3f/croot/ipykernel_1737660707910/work

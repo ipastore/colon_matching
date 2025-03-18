@@ -1,8 +1,9 @@
 from specular_mask import *
 from matching.viz import plot_matches, plot_kpts_2_images
 import time
+from my_logging import debug_log
 
-def process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger = None, resize = None, masking=False, plot_kpts=False):
+def match_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger = None, resize = None, masking=False, plot_kpts=False):
             """
             Process pairs of images using the given matcher and save the resulting plots.
             """
@@ -10,9 +11,9 @@ def process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, l
             
             img0 = matcher.load_image(img_path0, resize=resize)
             img1 = matcher.load_image(img_path1, resize=resize)
-            logger.debug(f'img0 shape: {img0.shape}')
-            logger.debug(f'img1 shape: {img1.shape}')
-
+            debug_log(logger, 'match_image_pairs', f'img0 shape: {img0.shape}')
+            debug_log(logger, 'match_image_pairs', f'img1 shape: {img1.shape}')
+            
             # Convert tensor images to BGR NumPy arrays (H, W, C) (row, col, channel)
             img0_np= get_bgr_image(img0)
             img1_np = get_bgr_image(img1)
@@ -24,9 +25,9 @@ def process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, l
                 # Get mask zero points and masked images for both images
                 mask0, masked_img0 = get_mask_and_masked_image(img0_np)
                 mask1, masked_img1 = get_mask_and_masked_image(img1_np)
-                logger.debug(f'mask0 shape: {mask0.shape}')
-                logger.debug(f'mask1 shape: {mask1.shape}')
-
+                debug_log(logger, 'match_image_pairs', f'mask0 shape: {mask0.shape}')
+                debug_log(logger, 'match_image_pairs', f'mask1 shape: {mask1.shape}')
+                
                 # Convert the numpy mask to a torch tensor for later processing
                 # Convert a NumPy mask (2D array, dtype=np.uint8) to a torch tensor
                 # with shape (1, H, W) and dtype=torch.uint8.
@@ -46,15 +47,14 @@ def process_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, l
                 plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
                 plot_matches(masked_img0, masked_img1, result, show_all_kpts=plot_kpts, save_path=plot_path)
                 end_plotting = time.perf_counter()
-                logger.debug(f'Plotting matches took {end_plotting - start_plotting:.3f} seconds')
-                logger.debug(f'Saved plot to {plot_path}')
-
+                debug_log(logger, 'match_image_pairs', f'Plotting matches took {end_plotting - start_plotting:.3f} seconds')
+                debug_log(logger, 'match_image_pairs', f'Saved plot to {plot_path}')
+                
             else:
                 start_plotting = time.perf_counter()
                 plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
                 plot_matches(img0, img1, result, show_all_kpts=plot_kpts, save_path=plot_path)
                 end_plotting = time.perf_counter()
-                logger.debug(f'Plotting took {end_plotting - start_plotting:.3f} seconds')
-                logger.debug(f'Saved plot to {plot_path}')
-              
+                debug_log(logger, 'match_image_pairs', f'Plotting matches took {end_plotting - start_plotting:.3f} seconds')
+                debug_log(logger, 'match_image_pairs', f'Saved plot to {plot_path}')
             return result

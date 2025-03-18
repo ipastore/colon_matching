@@ -39,7 +39,7 @@ def save_report(final_report, seq, model_name, logger,
         # Write header
         csv_writer.writerow(['Sequence', 'Model', 'mAA', 'RMSE_Rot_deg',  
                             'Avg_Extractor_Time', 'Avg_Filter_Time', 'Avg_Matcher_Time', 
-                            'Avg_Total_Time', 'Status'])
+                            'Avg_Total_Time', 'avg_Nimg_percentage','Status'])
         
         # Write summary row
         csv_writer.writerow([
@@ -51,6 +51,7 @@ def save_report(final_report, seq, model_name, logger,
             final_report["sequence_averages"].get("filter_time", 0),
             final_report["sequence_averages"].get("matcher_time", 0),
             final_report["sequence_averages"].get("total_pair_time", 0),
+            final_report["sequence_averages"].get("avg_Nimg_percentage", 0),
             reason
         ])
     
@@ -67,7 +68,7 @@ def save_report(final_report, seq, model_name, logger,
             # Write header
             csv_writer.writerow(['Sequence', 'Model', 'Submap', 'AA', 'RMSE_Rot_deg', 
                                 'Avg_Extractor_Time', 'Avg_Filter_Time', 'Avg_Matcher_Time', 
-                                'Avg_Total_Time', 'N_pairs'])
+                                'Avg_Total_Time', 'Total_img', 'N_img'])
             
             # Write a row for each submap
             for submap_name, submap_data in final_report["submaps"].items():
@@ -81,7 +82,8 @@ def save_report(final_report, seq, model_name, logger,
                     submap_data.get("average_filter_time", 0),
                     submap_data.get("average_matcher_time", 0),
                     submap_data.get("average_total_time", 0),
-                    submap_data.get("N_pairs", 0)
+                    submap_data.get("Total_img", 0),
+                    submap_data.get("Nimg_percentage", 0)
                 ])
         
         logger.info(f"Summary metrics saved as CSV to: {csv_filename}")
@@ -94,7 +96,8 @@ def save_report(final_report, seq, model_name, logger,
 def finalize_current_submap(submap, submap_rot_errs, submap_trans_errs, pair_metrics,
                              submap_start_time, thresholds_r, thresholds_t, all_submap_aas,
                              all_pairs_extractor_times, all_pairs_filter_times, all_pairs_matcher_times,
-                             all_pairs_total_times, all_rot_errs, final_report, logger):
+                             all_pairs_total_times, all_rot_errs, final_report,  registered_images, 
+                             total_images_submap, all_registered_images, logger):
     """Compute and save statistics for the current submap before exiting due to error or interrupt"""
     if not submap_rot_errs:  # If no successful pairs were processed for this submap
         logger.warning(f"No successful pairs processed for submap {submap}, cannot compute stats")
@@ -110,6 +113,12 @@ def finalize_current_submap(submap, submap_rot_errs, submap_trans_errs, pair_met
     aa = compute_AA(submap_rot_errs, submap_trans_errs, thresholds_r, thresholds_t)
     all_submap_aas.append(aa)
 
+
+    # Calculate Nimg for the submap
+    Nimg_submap = len(registered_images)
+    Nimg_percentage = (Nimg_submap / total_images_submap) * 100
+    all_registered_images.append(Nimg_percentage)
+
     # Store submap info
     final_report["submaps"][submap] = {
         "pairs": pair_metrics,
@@ -120,9 +129,16 @@ def finalize_current_submap(submap, submap_rot_errs, submap_trans_errs, pair_met
         "submap_total_time": submap_total_time,
         "submap_rmse_rotation_deg": submap_rmse_rot,
         "submap_AA": aa,
-        "N_pairs": len(pair_metrics)
+        "Total_img": total_images_submap,
+        "Nimg_percentage": Nimg_percentage,
     }
 
+    # Append to global arrays
+    all_pairs_extractor_times.extend([p["extractor_time"] for p in pair_metrics])
+    all_pairs_filter_times.extend([p["filter_time"] for p in pair_metrics])
+    all_pairs_matcher_times.extend([p["matcher_time"] for p in pair_metrics])
+    all_pairs_total_times.extend([p["total_pair_time"] for p in pair_metrics])
+    all_rot_errs.extend(submap_rot_errs)
     
     # Calculate sequence statistics with current data
     if len(all_submap_aas) > 0:
@@ -141,3 +157,37 @@ def finalize_current_submap(submap, submap_rot_errs, submap_trans_errs, pair_met
     if len(all_rot_errs) > 0:
         seq_rmse_rot = float(np.sqrt(np.mean(np.array(all_rot_errs) ** 2)))
         final_report["sequence_averages"]["rmse_rotation_deg"] = seq_rmse_rot
+
+def compute_final_sequence_stats(final_report, all_submap_aas, all_pairs_extractor_times, all_pairs_filter_times, all_pairs_matcher_times, all_pairs_total_times, all_rot_errs, all_registered_images):
+    """Compute final sequence-level statistics and update the final report."""
+    if len(all_submap_aas) > 0:
+        mAA = float(np.mean(all_submap_aas))
+    else:
+        mAA = 0.0
+
+    # Compute averages only if we have valid data
+    if all_pairs_extractor_times:
+        final_report["sequence_averages"]["extractor_time"] = float(np.mean(all_pairs_extractor_times))
+    if all_pairs_filter_times:
+        final_report["sequence_averages"]["filter_time"] = float(np.mean(all_pairs_filter_times))
+    if all_pairs_matcher_times:
+        final_report["sequence_averages"]["matcher_time"] = float(np.mean(all_pairs_matcher_times)) 
+    if all_pairs_total_times:
+        final_report["sequence_averages"]["total_pair_time"] = float(np.mean(all_pairs_total_times))
+
+    # Example RMSE across entire sequence
+    if len(all_rot_errs) > 0:
+        seq_rmse_rot = float(np.sqrt(np.mean(np.array(all_rot_errs) ** 2)))
+    else:
+        seq_rmse_rot = 0.0
+
+    final_report["sequence_averages"]["rmse_rotation_deg"] = seq_rmse_rot
+    final_report["sequence_mAA"] = mAA
+
+        # Calculate average Nimg percentage across all submaps
+    if all_registered_images:
+        avg_Nimg_percentage = float(np.mean(all_registered_images))
+    else:
+        avg_Nimg_percentage = 0.0
+    final_report["sequence_averages"]["avg_Nimg_percentage"] = avg_Nimg_percentage
+    final_report["processing_complete"] = True  # Mark processing as complete

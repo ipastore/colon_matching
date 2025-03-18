@@ -17,7 +17,7 @@ import sys
 import traceback
 from datetime import datetime
 import torch
-from reporting_helpers import save_report, finalize_current_submap, compute_final_sequence_stats
+from reporting_helpers import finalize_current_submap, create_sequence_report, save_submap_report
 
 ############################# CONFIG #############################
 device = get_default_device()
@@ -92,35 +92,6 @@ submaps = [f.stem for f in Path(f'data/{seq}/sparse').iterdir() if f.is_dir()]
 # Sort in ascending order
 submaps.sort()
 
-# Prepare overall data structure to store results
-final_report = {
-    "device_info": device_info,
-    "model_name": model_name,
-    "resize": resize,
-    "masking": masking,
-    "matcher_params": matcher_kwargs,
-    "sequence_name": seq,
-    "subsampling": subsample,
-    "thresholds_r": thresholds_r.tolist(),
-    "thresholds_t": thresholds_t.tolist(),
-    "extractor_config": matcher.extractor.conf,       # or str(matcher.extractor.conf)
-    "matcher_config": matcher.matcher.conf,           # or str(matcher.matcher.conf)
-    "submaps": {},
-    "sequence_averages": {},
-    "sequence_mAA": 0.0,
-    "processing_complete": False,  # Flag to indicate if processing completed normally
-}
-
-# We'll keep track of times/metrics across all submaps to compute a global average
-all_pairs_extractor_times   = []
-all_pairs_filter_times      = []
-all_pairs_matcher_times     = []
-all_pairs_total_times       = []
-all_rot_errs                = []
-all_trans_errs              = []
-all_submap_aas              = []
-all_registered_images       = []
-
 # Create timestamp for report filenames
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -174,127 +145,114 @@ try:
             logger.info(f"Starting pair: {img0_path.stem} and {img1_path.stem}")
             pair_start_time = time.perf_counter()
 
-            try:
-           
-                # Get relative pose from colmap
-                R01_colmap, t01_colmap = get_relative_pose_from_colmap(reconstruction, img0_path, img1_path)
+            # Get relative pose from colmap
+            R01_colmap, t01_colmap = get_relative_pose_from_colmap(reconstruction, img0_path, img1_path)
 
-                ##### START get_relative_pose_from_matcher #######
+            ##### START get_relative_pose_from_matcher #######
 
-                # Get relative pose froom matcher
-                result_matcher, R01_est, t01_est, extractor_time, filter_time, match_time = get_relative_pose_from_matcher(
-                    reconstruction, img0_path, img1_path, output_submap_dir, model_name, matcher, logger=logger, resize=resize, masking=masking, plot_kpts=plot_kpts, min_matches_for_pose=min_matches_for_pose
-                )
+            # Get relative pose froom matcher
+            result_matcher, R01_est, t01_est, extractor_time, filter_time, match_time = get_relative_pose_from_matcher(
+                reconstruction, img0_path, img1_path, output_submap_dir, model_name, matcher, logger=logger, resize=resize, masking=masking, plot_kpts=plot_kpts, min_matches_for_pose=min_matches_for_pose
+            )
 
-                if result_matcher is None:
-                    continue
+            if result_matcher is None:
+                continue
 
-                # rotation error
-                rot_err = rotation_error_deg(R01_colmap, R01_est)
-                # translation error relative to the diameter of the submap
-                trans_err = translation_error(t01_colmap, t01_est)
-                pair_end_time = time.perf_counter()
-                
-                debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} trans_error: {trans_err:.3f}" )
-                debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} rot_error: {rot_err:.3f}" )
+            # rotation error
+            rot_err = rotation_error_deg(R01_colmap, R01_est)
+            # translation error relative to the diameter of the submap
+            trans_err = translation_error(t01_colmap, t01_est)
+            pair_end_time = time.perf_counter()
+            
+            debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} trans_error: {trans_err:.3f}" )
+            debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} rot_error: {rot_err:.3f}" )
 
-                submap_rot_errs.append(rot_err)
-                submap_trans_errs.append(trans_err)
+            submap_rot_errs.append(rot_err)
+            submap_trans_errs.append(trans_err)
 
-                # Build a dictionary for this pair
-                pair_info = {
-                    "image0": img0_path.name,
-                    "image1": img1_path.name,
-                    "mkpts0": len(result_matcher['matched_kpts0']),
-                    "mkpts1": len(result_matcher['matched_kpts1']),
-                    "kpts0": len(result_matcher['all_kpts0']),
-                    "kpts1": len(result_matcher['all_kpts1']),
-                    "extractor_time": extractor_time,
-                    "filter_time": filter_time,
-                    "matcher_time": match_time,
-                    "total_pair_time": pair_end_time - pair_start_time,
-                    "rot_error_deg":  rot_err,
-                    "trans_error":    trans_err
-                }
-                pair_metrics.append(pair_info)
+            # Build a dictionary for this pair
+            pair_info = {
+                "image0": img0_path.name,
+                "image1": img1_path.name,
+                "mkpts0": len(result_matcher['matched_kpts0']),
+                "mkpts1": len(result_matcher['matched_kpts1']),
+                "kpts0": len(result_matcher['all_kpts0']),
+                "kpts1": len(result_matcher['all_kpts1']),
+                "extractor_time": extractor_time,
+                "filter_time": filter_time,
+                "matcher_time": match_time,
+                "total_pair_time": pair_end_time - pair_start_time,
+                "rot_error_deg":  rot_err,
+                "trans_error":    trans_err
+            }
+            pair_metrics.append(pair_info)
 
-                # Push to global arrays to do sequence-level stats
-                all_pairs_extractor_times.append(extractor_time)
-                all_pairs_filter_times.append(filter_time)
-                all_pairs_matcher_times.append(match_time)
-                all_pairs_total_times.append(pair_info["total_pair_time"])
-                all_rot_errs.append(rot_err)
-                all_trans_errs.append(trans_err)
-
-                # Add images to registered images set
-                registered_images.add(img0_path.name)
-                registered_images.add(img1_path.name)
-                
-            except Exception as e:
-                logger.error(f"Error processing pair {img0_path.name} and {img1_path.name}: {e}")
-                logger.error(traceback.format_exc())
-                # Stop and finalize current submap
-                logger.warning(f"Stopping processing due to error. Will save data collected so far.")
-                finalize_current_submap(submap, submap_rot_errs, submap_trans_errs, pair_metrics, 
-                                        submap_start_time, thresholds_r, thresholds_t, all_submap_aas,
-                                        all_pairs_extractor_times, all_pairs_filter_times, all_pairs_matcher_times,
-                                        all_pairs_total_times, all_rot_errs, final_report, 
-                                        registered_images, total_images_submap, all_registered_images, logger)
-
-                 # Compute final sequence-level stats
-                compute_final_sequence_stats(final_report, all_submap_aas, all_pairs_extractor_times,
-                                              all_pairs_filter_times, all_pairs_matcher_times, all_pairs_total_times,
-                                                all_rot_errs, all_registered_images)
-                save_report(final_report, seq, model_name, logger, output_report_dir, output_submap_dir,reason=f"error_in_pair_{img0_path.stem}_{img1_path.stem}")
-                sys.exit(1)
+            # Add images to registered images set
+            registered_images.add(img0_path.name)
+            registered_images.add(img1_path.name)
 
         # Finalize submap
-        finalize_current_submap(submap, submap_rot_errs, submap_trans_errs, pair_metrics, 
-                                submap_start_time, thresholds_r, thresholds_t, all_submap_aas,
-                                all_pairs_extractor_times, all_pairs_filter_times, all_pairs_matcher_times,
-                                all_pairs_total_times, all_rot_errs, final_report,
-                                registered_images, total_images_submap, all_registered_images,logger)
+        submap_data = finalize_current_submap(
+            submap, submap_rot_errs, submap_trans_errs, pair_metrics, 
+            submap_start_time, thresholds_r, thresholds_t,
+            registered_images, total_images_submap, logger
+        )
+        
+        # Guarda el JSON del submap individualmente
+        submap_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}/submaps')
+        submap_output_dir.mkdir(parents=True, exist_ok=True)
+        save_submap_report(
+            submap_data, seq, submap, model_name, 
+            submap_output_dir, logger, reason="complete"
+        )
+        
+        # Clear variables to save memory
+        del submap_rot_errs, submap_trans_errs, pair_metrics, registered_images
+        # Forzar limpieza de memoria si es necesario
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
-    # Compute final sequence-level stats
-    compute_final_sequence_stats(final_report, all_submap_aas, all_pairs_extractor_times, all_pairs_filter_times, all_pairs_matcher_times, 
-                                 all_pairs_total_times, all_rot_errs, all_registered_images)
-    # Save final report at the end of normal execution
-    save_report(final_report, seq, model_name, logger, output_report_dir, output_submap_dir,reason="complete")
+    # Al final, genera el reporte de secuencia completa
+    sequence_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}')
+    submaps_dir = sequence_output_dir / 'submaps'
+    
+    # Metadata para el reporte de secuencia
+    metadata = {
+        "device_info": device_info,
+        "resize": resize,
+        "masking": masking,
+        "matcher_params": matcher_kwargs,
+        "subsampling": subsample,
+        "thresholds_r": thresholds_r.tolist(),
+        "thresholds_t": thresholds_t.tolist(),
+        "extractor_config": matcher.extractor.conf,
+        "matcher_config": matcher.matcher.conf,
+    }
+    
+    # Crea el reporte final de secuencia
+    create_sequence_report(seq, model_name, submaps_dir, sequence_output_dir, logger, metadata)
 
 except KeyboardInterrupt:
+    # Código similar pero también guarda el submap actual de forma individual
     logger.warning("Processing interrupted by user (Ctrl+C)")
     
     # Try to finalize current submap if we're in the middle of one
     current_submap = submaps[submaps.index(submap)] if 'submap' in locals() else None
     if current_submap and 'submap_start_time' in locals():
         logger.info(f"Finalizing data for current submap {current_submap} before exiting")
-        finalize_current_submap(submap, submap_rot_errs, submap_trans_errs, pair_metrics, 
-                                submap_start_time, thresholds_r, thresholds_t, all_submap_aas,
-                                all_pairs_extractor_times, all_pairs_filter_times, all_pairs_matcher_times,
-                                all_pairs_total_times, all_rot_errs, final_report, 
-                                registered_images, total_images_submap, all_registered_images, logger)
-
-    compute_final_sequence_stats(final_report, all_submap_aas, all_pairs_extractor_times, all_pairs_filter_times,
-                                  all_pairs_matcher_times, all_pairs_total_times, all_rot_errs, all_registered_images)
-    # Save the report with the data collected so far
-    save_report(final_report, seq, model_name, logger, output_report_dir, output_submap_dir,reason="interrupted")
+        submap_data = finalize_current_submap(
+            submap, submap_rot_errs, submap_trans_errs, pair_metrics, 
+            submap_start_time, thresholds_r, thresholds_t,
+            registered_images, total_images_submap, logger
+        )
+        
+        # Guarda el JSON del submap individualmente
+        submap_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}/submaps')
+        submap_output_dir.mkdir(parents=True, exist_ok=True)
+        save_submap_report(
+            submap_data, seq, submap, model_name, 
+            submap_output_dir, logger, reason="interrupted"
+        )
+    
     sys.exit(1)
     
-except Exception as e:
-    logger.error(f"Critical error in main processing loop: {e}")
-    logger.error(traceback.format_exc())
-    
-    # Try to finalize current submap if we're in the middle of one
-    current_submap = submaps[submaps.index(submap)] if 'submap' in locals() else None
-    if current_submap and 'submap_start_time' in locals():
-        logger.info(f"Finalizing data for current submap {current_submap} before exiting")
-        finalize_current_submap(submap, submap_rot_errs, submap_trans_errs, pair_metrics, 
-                                submap_start_time, thresholds_r, thresholds_t, all_submap_aas,
-                                all_pairs_extractor_times, all_pairs_filter_times, all_pairs_matcher_times,
-                                all_pairs_total_times, all_rot_errs, final_report, logger)       
-    
-    compute_final_sequence_stats(final_report, all_submap_aas, all_pairs_extractor_times, all_pairs_filter_times,
-                                 all_pairs_matcher_times, all_pairs_total_times, all_rot_errs, all_registered_images)
-    # Save the report with the data collected so far
-    save_report(final_report,seq, model_name, logger, output_report_dir, output_submap_dir,reason="error")
-    sys.exit(1)  # Exit with error code instead of re-raising

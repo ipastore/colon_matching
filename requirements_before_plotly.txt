@@ -64,7 +64,7 @@ httpx==0.28.1
 huggingface-hub==0.29.0
 humanfriendly==10.0
 idna==3.10
--e git+https://github.com/ipastore/image-matching-models.git@21e8fed7df47db66a73cc8e857b15ea6479e4838#egg=image_matching_models&subdirectory=../../../utils/image-matching_models
+-e git+https://github.com/ipastore/image-matching-models.git@5ff776f4e9bc0bfa63f9e386f1197302124e173b#egg=image_matching_models&subdirectory=../../../utils/image-matching_models
 imageio==2.37.0
 imagesize==1.4.1
 ipykernel @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_908a9n7o3f/croot/ipykernel_1737660707910/work
@@ -118,7 +118,7 @@ parso @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_8824
 pexpect @ file:///tmp/build/80754af9/pexpect_1605563209008/work
 pillow==11.1.0
 platformdirs @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_a8u4fy8k9o/croot/platformdirs_1692205661656/work
-plotly @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_355h7rp5w6/croot/plotly_1740385572072/work
+plotly==6.0.0
 poselib==2.0.4
 prometheus_client==0.21.1
 prompt-toolkit @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_c63v4kqjzr/croot/prompt-toolkit_1704404354115/work
@@ -184,7 +184,6 @@ stack-data @ file:///opt/conda/conda-bld/stack_data_1646927590127/work
 starlette==0.46.0
 sympy==1.13.1
 tables==3.10.1
-tenacity @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_74aksf93nl/croot/tenacity_1730303583236/work
 tensorboard==2.18.0
 tensorboard-data-server==0.7.2
 tensorboardX==2.6.1

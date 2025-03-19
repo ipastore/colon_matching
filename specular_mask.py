@@ -5,7 +5,8 @@ import os
 from pathlib import Path
 from matching.utils import get_default_device, to_tensor, to_numpy
 from my_logging import debug_log
-
+import gc
+from memory_profiler import profile
 
 def create_mask(frame_gray):
     # Create a mask to avoid detection in specularities in the image (bright spots)
@@ -57,21 +58,33 @@ def is_in_mask(points: torch.Tensor, mask_points: torch.Tensor, logger=None) -> 
     equal = torch.all(points[:, None, :] == mask_points[None, :, :], dim=2)  # shape: (K,N)
     return torch.any(equal, dim=1)
 
-
+@profile
 def get_bgr_image(img):
-    """Convert a PyTorch tensor image (C,H,W) to a NumPy BGR image."""
-    return cv2.cvtColor(img.permute(1, 2, 0).cpu().numpy(), cv2.COLOR_RGB2BGR)
+    """Convert a PyTorch tensor image (C,H,W) to a NumPy BGR image while freeing memory."""
+    img_np = cv2.cvtColor(img.permute(1, 2, 0).detach().cpu().numpy(), cv2.COLOR_RGB2BGR)
+    
+    del img
+    return img_np
 
 
+
+@profile
 def get_mask_and_masked_image(img_np):
-    """Return the mask and the masked image (in RGB) given a NumPy BGR image."""
+    """Return the mask and the masked image (in RGB) given a NumPy BGR image while minimizing memory usage."""
     img_gray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
-    mask = create_mask_normalized(img_gray)
-    mask = mask.astype(np.uint8)
-    # Apply the mask to get the masked image in BGR
-    masked_img = cv2.bitwise_and(img_np, img_np, mask=mask)
-    # Convert the masked image from BGR to RGB
-    masked_img = cv2.cvtColor(masked_img, cv2.COLOR_BGR2RGB)
+    mask = create_mask_normalized(img_gray).astype(np.uint8)
+
+    # Apply mask **in-place** without creating additional copies
+    img_np[:, :, 0] *= mask
+    img_np[:, :, 1] *= mask
+    img_np[:, :, 2] *= mask
+
+    # Convert to RGB **in-place** to avoid unnecessary duplication
+    masked_img = cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB)
+
+    # Explicitly delete large variables
+    del img_gray, img_np
+
     return mask, masked_img
 
 def get_mask_points(mask: torch.Tensor) -> torch.Tensor:

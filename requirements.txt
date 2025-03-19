@@ -91,6 +91,7 @@ MarkupSafe==2.1.5
 matplotlib==3.8.4
 matplotlib-inline @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_f6fdc0hldi/croots/recipe/matplotlib-inline_1662014472341/work
 mdurl==0.1.2
+memory-profiler @ file:///Users/ktietz/demo/mc3/conda-bld/memory_profiler_1630567160231/work
 ml-dtypes==0.4.1
 mpmath==1.3.0
 msgpack==1.1.0

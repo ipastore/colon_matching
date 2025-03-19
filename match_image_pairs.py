@@ -2,13 +2,15 @@ from specular_mask import *
 from matching.viz import plot_matches, plot_kpts_2_images
 import time
 from my_logging import debug_log
+import gc
+from memory_profiler import profile
 
+@profile
 def match_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger = None, resize = None, masking=False, plot_kpts=False):
             """
             Process pairs of images using the given matcher and save the resulting plots.
             """
-            logger.info(f"Processing pair: {img_path0.stem} and {img_path1.stem} using {model_name}")
-            
+                        
             img0 = matcher.load_image(img_path0, resize=resize)
             img1 = matcher.load_image(img_path1, resize=resize)
             debug_log(logger, 'match_image_pairs', f'img0 shape: {img0.shape}')
@@ -40,6 +42,8 @@ def match_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, log
             # Check if any matches were found after filtering
             if len(result['matched_kpts1']) == 0:
                 logger.info(f'No matches found for pair: {img_path0.stem} and {img_path1.stem} using {model_name}')
+                del img0, img1, mask0, mask1, img0_np, img1_np, masked_img0, masked_img1
+                gc.collect()
                 return  # Skip this pair
             
             if masking:
@@ -57,4 +61,7 @@ def match_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, log
                 end_plotting = time.perf_counter()
                 debug_log(logger, 'match_image_pairs', f'Plotting matches took {end_plotting - start_plotting:.3f} seconds')
                 debug_log(logger, 'match_image_pairs', f'Saved plot to {plot_path}')
+            
+            del img0, img1, mask0, mask1, img0_np, img1_np, masked_img0, masked_img1
+            gc.collect()
             return result

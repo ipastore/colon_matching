@@ -5,6 +5,8 @@ from scipy.spatial.transform import Rotation as R
 import torch
 from match_image_pairs import match_image_pairs
 from my_logging import debug_log
+import gc
+from memory_profiler import profile
 
 def get_device_info(device):
     """Get device information similar to nvidia-smi."""
@@ -385,11 +387,9 @@ def filter_image_pairs(
     
     return final_pairs
 
-def get_relative_pose_from_colmap(reconstruction, img0_path, img1_path):
+@profile
+def get_relative_pose_from_colmap(image0, image1):
     """Get relative pose between two images from a COLMAP reconstruction"""
-
-    image0 = reconstruction.find_image_with_name(img0_path.name)
-    image1 = reconstruction.find_image_with_name(img1_path.name)
 
     # Get the absolute poses of the images
     absolute_pose0 = image0.cam_from_world
@@ -400,8 +400,9 @@ def get_relative_pose_from_colmap(reconstruction, img0_path, img1_path):
 
     return R01_colmap, t01_colmap
 
-
-def get_relative_pose_from_matcher(reconstruction, img0_path, img1_path, output_submap_dir, model_name,
+@profile
+def get_relative_pose_from_matcher(img0_path, img1_path, camera0, camera1,
+                                    output_submap_dir, model_name,
                                     matcher, logger=None, resize=None, masking=False,
                                     plot_kpts=False, min_matches_for_pose=8):
     result_matcher = match_image_pairs(
@@ -416,7 +417,7 @@ def get_relative_pose_from_matcher(reconstruction, img0_path, img1_path, output_
 
     # Extract sub-step times from the result_matcher
     extractor_time = result_matcher["timings"].get("extractor_time", 0.0)
-    filter_time      = result_matcher["timings"].get("filter_time", 0.0)
+    filter_time    = result_matcher["timings"].get("filter_time", 0.0)
     match_time     = result_matcher["timings"].get("matcher_time", 0.0)
 
     # Instead of skipping, add a high penalty error for pairs with too few matches
@@ -426,14 +427,6 @@ def get_relative_pose_from_matcher(reconstruction, img0_path, img1_path, output_
     
     mkpts0 = result_matcher['matched_kpts0']
     mkpts1 = result_matcher['matched_kpts1']
-    
-    # Get image objects
-    image0 = reconstruction.find_image_with_name(img0_path.name)
-    image1 = reconstruction.find_image_with_name(img1_path.name)
-
-    # Get camera objects
-    camera0 = reconstruction.camera(image0.camera_id)
-    camera1 = reconstruction.camera(image1.camera_id)
 
     # Convert mkpts to COLMAP coordinates
     corrected_mkpts0 = adapt_mkpts_to_colmap(mkpts0)
@@ -447,6 +440,8 @@ def get_relative_pose_from_matcher(reconstruction, img0_path, img1_path, output_
     # Similarly for essential matrix estimation failure, add penalty instead of skipping
     if result_colmap is None:
         logger.warning(f"Essential matrix estimation failed for {img0_path.stem} and {img1_path.stem}.")
+        del result_colmap, corrected_mkpts0, corrected_mkpts1, mkpts0, mkpts1, matcher
+        gc.collect()
         return None, None, None, None, None, None
 
 
@@ -454,4 +449,6 @@ def get_relative_pose_from_matcher(reconstruction, img0_path, img1_path, output_
     R01_est = result_colmap['cam2_from_cam1'].rotation.matrix()
     t01_est = result_colmap['cam2_from_cam1'].translation
 
+    del result_colmap, corrected_mkpts0, corrected_mkpts1, mkpts0, mkpts1, matcher
+    gc.collect()
     return result_matcher, R01_est, t01_est, extractor_time, filter_time, match_time

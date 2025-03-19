@@ -33,7 +33,7 @@ DEBUG = True  # Global debug flag. Set to False to disable extra debug logging.
 # "filter_image_pairs", "filter_image_feats_with_mask", "easy_medium_hard", "filter_image_feats_with_mask"
 #  "filter_feat_dict_with_mask", "base_matcher_forward", "Roma_forward", "Roma_forward_symmetric", "TinyRoma_forward"
 # activated_debug_flags = {"ALL"}
-activated_debug_flags = {"memory_magement"}
+activated_debug_flags = {"memory_management"}
 ############################# CHOOSE MODELS #############################
 # model_name = 'sift-nn'
 # model_name = 'gim-lg'
@@ -207,7 +207,12 @@ def main_loop():
                 # Add images to registered images set
                 registered_images.add(img0_path.name)
                 registered_images.add(img1_path.name)
-
+                
+                del result_matcher, R01_est, t01_est, R01_colmap, t01_colmap, image0, image1, camera0, camera1, pair_info
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                
             # Finalize submap
             submap_data = finalize_current_submap(
                 submap, submap_rot_errs, submap_trans_errs, pair_metrics, 
@@ -222,39 +227,14 @@ def main_loop():
                 submap_data, seq, submap, model_name, 
                 submap_output_dir, logger, reason="complete"
             )
-
-            process = psutil.Process(os.getpid())
-            #Log begore GC
-            before_gc_ram = process.memory_info().rss
-            before_gc_cuda = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
-            debug_log(logger,"memory_magement", f"Memory used before GC: {before_gc_ram / 1024**2:.2f} MB")
-            debug_log(logger, "memory_management", f"Memory available before GC: {psutil.virtual_memory().available / 1024**2:.2f} MB")
-            debug_log(logger,"memory_magement", f"Memory used by PyTorch before GC: {before_gc_cuda / 1024**2:.2f} MB")
-            debug_log(logger,"memory_magement", f"Memory cached by PyTorch before GC: {torch.cuda.memory_reserved() / 1024**2:.2f} MB")
-            debug_log(logger,"memory_magement", f"Memory used by PyTorch (max) before GC: {torch.cuda.max_memory_allocated() / 1024**2:.2f} MB")
-            debug_log(logger,"memory_magement", f"Memory cached by PyTorch (max) before GC: {torch.cuda.max_memory_reserved() / 1024**2:.2f} MB")
-        
-            
+                    
             del submap_rot_errs, submap_trans_errs, pair_metrics, registered_images
             del reconstruction, covisibility_graph, images, pairs
-            del result_matcher
-            del R01_colmap, t01_colmap, R01_est, t01_est
             del submap_data
 
             gc.collect()
-            # Forzar limpieza de memoria si es necesario
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            
-            # Log after GC
-            after_gc_ram = process.memory_info().rss
-            after_gc_cuda = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
-            debug_log(logger, "memory_management", f"Memory used after GC: {after_gc_ram / 1024**2:.2f} MB")
-            debug_log(logger, "memory_management", f"Memory available after GC: {psutil.virtual_memory().available / 1024**2:.2f} MB")
-            debug_log(logger, "memory_management", f"Memory used by PyTorch after GC: {after_gc_cuda / 1024**2:.2f} MB")
-            debug_log(logger, "memory_management", f"Memory cached by PyTorch after GC: {torch.cuda.memory_reserved() / 1024**2:.2f} MB")
-            debug_log(logger, "memory_management", f"Memory used by PyTorch (max) after GC: {torch.cuda.max_memory_allocated() / 1024**2:.2f} MB")
-            debug_log(logger, "memory_management", f"Memory cached by PyTorch (max) after GC: {torch.cuda.max_memory_reserved() / 1024**2:.2f} MB")
             
         # Al final, genera el reporte de secuencia completa
         sequence_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}')

@@ -4,8 +4,8 @@ import time
 from my_logging import debug_log
 import gc
 from memory_profiler import profile
+import psutil
 
-@profile
 def match_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, logger = None, resize = None, masking=False, plot_kpts=False):
             """
             Process pairs of images using the given matcher and save the resulting plots.
@@ -47,6 +47,7 @@ def match_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, log
                 return  # Skip this pair
             
             if masking:
+                
                 start_plotting = time.perf_counter()
                 plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
                 plot_matches(masked_img0, masked_img1, result, show_all_kpts=plot_kpts, save_path=plot_path)

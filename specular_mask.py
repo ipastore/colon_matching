@@ -58,7 +58,6 @@ def is_in_mask(points: torch.Tensor, mask_points: torch.Tensor, logger=None) -> 
     equal = torch.all(points[:, None, :] == mask_points[None, :, :], dim=2)  # shape: (K,N)
     return torch.any(equal, dim=1)
 
-@profile
 def get_bgr_image(img):
     """Convert a PyTorch tensor image (C,H,W) to a NumPy BGR image while freeing memory."""
     img_np = cv2.cvtColor(img.permute(1, 2, 0).detach().cpu().numpy(), cv2.COLOR_RGB2BGR)
@@ -68,7 +67,6 @@ def get_bgr_image(img):
 
 
 
-@profile
 def get_mask_and_masked_image(img_np):
     """Return the mask and the masked image (in RGB) given a NumPy BGR image while minimizing memory usage."""
     img_gray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)

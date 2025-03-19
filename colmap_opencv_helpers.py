@@ -387,7 +387,6 @@ def filter_image_pairs(
     
     return final_pairs
 
-@profile
 def get_relative_pose_from_colmap(image0, image1):
     """Get relative pose between two images from a COLMAP reconstruction"""
 
@@ -400,7 +399,6 @@ def get_relative_pose_from_colmap(image0, image1):
 
     return R01_colmap, t01_colmap
 
-@profile
 def get_relative_pose_from_matcher(img0_path, img1_path, camera0, camera1,
                                     output_submap_dir, model_name,
                                     matcher, logger=None, resize=None, masking=False,

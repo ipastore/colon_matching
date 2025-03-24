@@ -186,112 +186,44 @@ def load_covisibility_graph(file_path):
     
     return covisibility_graph
 
-#TODO: not worth it for a function
-# def is_covisible(reference_image, query_image, covisibility_graph):
-#     """
-#     Check if a query image is covisible with a reference image.
-    
-#     Args:
-#         reference_image (str): The name of the reference image
-#         query_image (str): The name of the query image to check for covisibility
-#         covisibility_graph (dict): A covisibility graph dictionary as returned by
-#                                  load_covisibility_graph()
-    
-#     Returns:
-#         bool: TRUE if query_image is covisible with reference_image, FALSE otherwise
-#     """
-#     # Check if reference image exists in the graph
-#     if reference_image not in covisibility_graph:
-#         return False
-    
-#     # Check if query image is in the list of covisible images for the reference image
-#     return query_image in covisibility_graph[reference_image]
 
-def compute_covisibility_3d(
-    reconstruction, 
-    img_name1, 
-    img_name2, 
-    min_track_len=3, 
-    max_reproj_error=2.0
-):
+
+def compute_parallax(P, C1, C2):
     """
-    Computes the 3D covisibility between two images in the given reconstruction.
-    
-    - Filters 3D points based on 'min_track_len' and 'max_reproj_error'.
-    - Returns a value in [0,1] indicating the fraction of shared 3D points
-      relative to the image that observes fewer points (after filtering).
-    
-    Parameters:
-    -----------
-    reconstruction : pycolmap.Reconstruction
-        Loaded pycolmap reconstruction.
-    img_name1 : str
-        File name of the first image (as it appears in the reconstruction).
-    img_name2 : str
-        File name of the second image.
-    min_track_len : int
-        Minimum track length threshold (number of views observing the 3D point).
-    max_reproj_error : float
-        Maximum reprojection error allowed to consider a 3D point as valid.
-    
+    Compute the parallax angle (in radians) between two cameras and a 3D point.
+
+    Args:
+        P (np.ndarray): 3D point (shape: [3])
+        C1 (np.ndarray): Center of camera 1 (shape: [3])
+        C2 (np.ndarray): Center of camera 2 (shape: [3])
+
     Returns:
-    --------
-    float
-        3D covisibility value in [0, 1], or 0.0 if there are no valid shared points
-        or if either image does not observe valid 3D points.
+        float: Parallax angle in radians
     """
-    
-    # 1) First, filter all 3D points in the reconstruction based on track_len and reproj_error
+    v1 = (P - C1)
+    v1 /= np.linalg.norm(v1)
+
+    v2 = (P - C2)
+    v2 /= np.linalg.norm(v2)
+
+    cos_theta = np.clip(np.dot(v1, v2), -1.0, 1.0)
+    theta = np.arccos(cos_theta)
+
+    return np.degrees(theta)
+
+def filter_3D_points(reconstruction, min_track_len, max_reproj_error):
     valid_points = set()
     for p3d_id, p3d in reconstruction.points3D.items():
-        # p3d.track.length() is the number of views observing the 3D point
-        # p3d.error is the average reprojection error in pycolmap
         if p3d.track.length() >= min_track_len and p3d.error <= max_reproj_error:
             valid_points.add(p3d_id)
-
-    # 2) Get the 'Image' object for each image
-    imageA = reconstruction.find_image_with_name(img_name1)
-    imageB = reconstruction.find_image_with_name(img_name2)
+    return valid_points
     
-    if imageA is None or imageB is None:
-        # If either image is not found, return 0
-        return 0.0
-    
-    # 3) Extract the 3D point IDs observed by each image - fixed for PyColmap API
-    pointsA = set()
-    pointsB = set()
-    
-    # Get points3D IDs from each point2D in the images
-    for point2D in imageA.points2D:
-        if point2D.has_point3D():
-            pointsA.add(point2D.point3D_id)
-    
-    for point2D in imageB.points2D:
-        if point2D.has_point3D():
-            pointsB.add(point2D.point3D_id)
-    
-    # 4) Intersect with the valid points (filtered)
-    pointsA_valid = pointsA.intersection(valid_points)
-    pointsB_valid = pointsB.intersection(valid_points)
-    
-    if len(pointsA_valid) == 0 or len(pointsB_valid) == 0:
-        return 0.0
-    
-    # 5) Intersection between both sets
-    shared_points = pointsA_valid.intersection(pointsB_valid)
-    n_shared = len(shared_points)
-    
-    # 6) Normalize with respect to the image with fewer valid points
-    min_count = min(len(pointsA_valid), len(pointsB_valid))
-    covisibility_3d = n_shared / float(min_count)
-    
-    return covisibility_3d
-
 def filter_image_pairs(
     images,
     reconstruction,
     covisibility_graph,
-    covisibility_threshold=0.2,
+    min_parallax=0.0,
+    covisibility_threshold=0.0,
     min_track_len=3,
     max_reproj_error=2.0,
     min_shared_points=15,
@@ -311,78 +243,100 @@ def filter_image_pairs(
         logger: Optional logger object for info and warnings
         
     Returns:
-        list: List of filtered image pairs as tuples [(img_path1, img_path2), ...]
+        list: List of dicts, each with keys: img0, img1, shared_points, covis_score, median_parallax
     """
-    # 1. Create initial sequential pairs
-    initial_pairs = [(images[i], images[i+1]) for i in range(len(images)-1)]
-    
-    debug_log(logger, 'filter_image_pairs', f"Created {len(initial_pairs)} initial sequential pairs")
 
     final_pairs = []
-    pairs_passed_graph = 0
-    pairs_passed_points = 0
+    valid_points = filter_3D_points(reconstruction, min_track_len, max_reproj_error)
     
-    # Combined filtering in a single loop
-    for img0, img1 in initial_pairs:
+    i = 0
+    # Greedy forward matching of pairs
+    while i < len(images):
+        img0 = images[i]
         img0_name = img0.name if hasattr(img0, 'name') else img0
-        img1_name = img1.name if hasattr(img1, 'name') else img1
-        
-        # Filter 1: Check covisibility graph
-        if img0_name not in covisibility_graph:
-            debug_log(logger, 'filter_image_pairs', f"Reference image {img0_name} not in covisibility graph. Skipping pair.")
-            continue
-        
-        if img1_name not in covisibility_graph[img0_name]:
-            debug_log(logger, 'filter_image_pairs', f"Query image {img1_name} not in covisibility graph for reference image {img0_name}. Skipping pair.")
-            continue
-        
-        pairs_passed_graph += 1
-        
-        # Get the 'Image' object for each image
-        imageA = reconstruction.find_image_with_name(img0_name)
-        imageB = reconstruction.find_image_with_name(img1_name)
-        
-        if imageA is None or imageB is None:
-            debug_log(logger, 'filter_image_pairs', f"Could not find images in reconstruction. Skipping pair.")
-            continue
-        
-        # Filter 2: Check minimum shared 3D points
-        pointsA = set()
-        pointsB = set()
-        
-        for point2D in imageA.points2D:
-            if point2D.has_point3D():
-                pointsA.add(point2D.point3D_id)
-        
-        for point2D in imageB.points2D:
-            if point2D.has_point3D():
-                pointsB.add(point2D.point3D_id)
-        
-        shared_points = pointsA.intersection(pointsB)
-        n_shared = len(shared_points)
-        
-        if n_shared < min_shared_points:
-            debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) has only {n_shared} shared points < {min_shared_points}. Skipping.")
-            continue
+        match_found = False
 
-        pairs_passed_points += 1
+        for j in range(i + 1, len(images)):
+            img1 = images[j]
+            img1_name = img1.name if hasattr(img1, 'name') else img1
+
+            # Filter1: Check if img0 and img1 are neighbors in the covisibility graph
+            if img0_name not in covisibility_graph :
+                debug_log(logger, 'filter_image_pairs', f"{img0_name} not found in covisibility graph.")
+                continue
+            
+            if img1_name not in covisibility_graph[img0_name]:
+                debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) not neighbors in covisibility graph. Skipping.")
+                continue
+            
+            # Get the 'Image' object for each image
+            imageA = reconstruction.find_image_with_name(img0_name)
+            imageB = reconstruction.find_image_with_name(img1_name)
+            
+            if imageA is None or imageB is None:
+                debug_log(logger, 'filter_image_pairs', f"Could not find images in reconstruction. Skipping pair.")
+                continue
+            
+            # Filter 2: Shared 3D points
+            pointsA = {pt.point3D_id for pt in imageA.points2D if pt.has_point3D()}
+            pointsB = {pt.point3D_id for pt in imageB.points2D if pt.has_point3D()}
+            
+            # Intersect with the valid points (filtered)
+            pointsA_valid = pointsA.intersection(valid_points)
+            pointsB_valid = pointsB.intersection(valid_points)
+                
+            shared_points = pointsA_valid.intersection(pointsB_valid)
+            n_shared = len(shared_points)
+            
+            if n_shared < min_shared_points:
+                debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) has only {n_shared} shared points < {min_shared_points}. Skipping.")
+                continue
+            
+            # Filter 3: Covisibility score
+            min_count = min(len(pointsA_valid), len(pointsB_valid))
+            covis_score = n_shared / float(min_count)
+            
+            if covis_score < covisibility_threshold:
+                debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) has low covisibility score {covis_score:.3f} < {covisibility_threshold}. Skipping.")
+                continue
+
+            # Filter 4: Check parallax angle        
+            camera_center_A = imageA.cam_from_world.inverse().translation
+            camera_center_B = imageB.cam_from_world.inverse().translation
+
+            parallax_angles = [
+                compute_parallax(reconstruction.points3D[pid].xyz, camera_center_A, camera_center_B)
+                for pid in shared_points
+            ]
+
+            if len(parallax_angles) == 0:
+                debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) has no parallax angles. WARNING.")
+                continue
+
+            median_parallax = np.median(parallax_angles)
+            if median_parallax < min_parallax:
+                debug_log(logger, 'filter_image_pairs',
+                            f"Pair ({img0_name}, {img1_name}) rejected: parallax {(median_parallax):.2f}° < {min_parallax:.2f}°")
+                continue
         
-        # Filter 3: Check 3D covisibility score
-        covis_score = compute_covisibility_3d(
-            reconstruction,
-            img0_name,
-            img1_name,
-            min_track_len=min_track_len,
-            max_reproj_error=max_reproj_error
-        )
-        
-        if covis_score >= covisibility_threshold:
-            final_pairs.append((img0, img1))
-        elif logger:
-            debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) has low covisibility score {covis_score:.3f} < {covisibility_threshold}. Skipping.")
-    
-    debug_log(logger, 'filter_image_pairs', f"{pairs_passed_graph} pairs passed the covisibility graph filter")
-    debug_log(logger, 'filter_image_pairs', f"{pairs_passed_points} pairs passed the minimum shared points filter")
+            
+            final_pairs.append({
+                "img0": img0,
+                "img1": img1,
+                "shared_points": n_shared,
+                "covis_score": covis_score,
+                "median_parallax": median_parallax,
+            })
+            match_found = True
+            i = j #Jump forward in the sequence
+            debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) passed all filters.")
+            break  # Greedy: take only the first valid match ahead
+
+        if not match_found:
+            i+=1
+            debug_log(logger, 'filter_image_pairs', f"No match found for {img0_name}. Skipping to next image.")
+
+    debug_log(logger, 'filter_image_pairs', f"{len(images)} initial images")
     debug_log(logger, 'filter_image_pairs', f"{len(final_pairs)} pairs passed all filters")
     
     return final_pairs

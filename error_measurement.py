@@ -17,7 +17,7 @@ import sys
 import traceback
 from datetime import datetime
 import torch
-from reporting_helpers import finalize_current_submap, create_sequence_report, save_submap_report
+from reporting_helpers import finalize_current_submap, create_sequence_report, save_submap_report, progress_bar
 import gc
 import psutil
 import tracemalloc
@@ -33,7 +33,7 @@ DEBUG = True  # Global debug flag. Set to False to disable extra debug logging.
 # "filter_image_pairs", "filter_image_feats_with_mask", "easy_medium_hard", "filter_image_feats_with_mask"
 #  "filter_feat_dict_with_mask", "base_matcher_forward", "Roma_forward", "Roma_forward_symmetric", "TinyRoma_forward"
 # activated_debug_flags = {"ALL"}
-activated_debug_flags = {"memory_management"}
+activated_debug_flags = {"filter_image_pairs"}
 ############################# CHOOSE MODELS #############################
 # model_name = 'sift-nn'
 # model_name = 'gim-lg'
@@ -80,11 +80,17 @@ covisibility_threshold = 0.0 # for filtering image pairs (easy, medium, hard)
 min_shared_points = 15 # for filtering image pairs
 min_track_len = 3 # for filtering image pairs
 max_reproj_error = 2.0 # for filtering image pairs
+############################ Parallax #############################
+min_parallax = 5 # for robust estimation of relative pose (degrees)
+############################# Min Pairs for submap #############################
+min_pairs_for_submap = 10 # for skipping submaps with too few pairs
 ############################# Min Matches for pose estimation #############################
 min_matches_for_pose = 8 # for skipping pairs with too few matches
 ############################# Thresholds #############################
 thresholds_r = np.linspace(0.1, 5, 10)
 thresholds_t = np.linspace(0.01, 0.1, 10)
+
+
 
 def main_loop():
 
@@ -97,15 +103,18 @@ def main_loop():
     debug_log(logger, "error_measurement", f"Matcher conf: {matcher.matcher.conf}")
 
     # Get all submaps of sequence get the names of the submaps
-    submaps = [f.stem for f in Path(f'data/{seq}/sparse').iterdir() if f.is_dir()]
+    submaps = [int(f.stem) for f in Path(f'data/{seq}/sparse').iterdir() if f.is_dir()]
     # Sort in ascending order
     submaps.sort()
+    # Convert to string
+    submaps = [str(submap) for submap in submaps]
 
     # Create timestamp for report filenames
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     try:
         # Iterate over all the submaps in the sequence
+        # for submap in [submaps[39]]:               ######################### FOR DEBUGGING
         for submap in submaps:
             logger.info(f"Starting submap: {submap}")
             # Define the paths for the submap model and the source of images of the mode
@@ -130,10 +139,14 @@ def main_loop():
             images.sort(key=lambda x: x.name)
 
             # Create pairs of sequential images instead of all combinations
-            pairs = filter_image_pairs(images, reconstruction, covisibility_graph, covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
+            pairs = filter_image_pairs(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
                                     max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)
             # Compute total images in the submap with the filtered pairs
             total_images_submap = len(set(itertools.chain(*pairs)))
+
+            if len(pairs) <  min_pairs_for_submap:
+                logger.info(f"Skipping submap {submap} because there are no image pairs to process")
+                continue
 
             output_report_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}')
             output_report_dir.mkdir(parents=True, exist_ok=True)
@@ -150,10 +163,17 @@ def main_loop():
             # Measure submap pipeline total time
             submap_start_time = time.perf_counter()
 
-            for img0_path, img1_path in pairs:
-                logger.info(f"Starting pair: {img0_path.stem} and {img1_path.stem}")
-                pair_start_time = time.perf_counter()
+            for pair_data in pairs:
+                
+                img0_path = pair_data["img0"]
+                img1_path = pair_data["img1"]
+                covis_score = pair_data["covis_score"]
+                parallax = pair_data["median_parallax"]
+                
+                # Create a terminal progress bar
+                progress_bar(logger, len(pair_metrics), len(pairs), img0_path, img1_path)
 
+                pair_start_time = time.perf_counter()
                 # Get image objects
                 image0 = reconstruction.find_image_with_name(img0_path.name)
                 image1 = reconstruction.find_image_with_name(img1_path.name)
@@ -200,7 +220,9 @@ def main_loop():
                     "matcher_time": match_time,
                     "total_pair_time": pair_end_time - pair_start_time,
                     "rot_error_deg":  rot_err,
-                    "trans_error":    trans_err
+                    "trans_error":    trans_err,
+                    "covis_score": covis_score,
+                    "parallax": parallax
                 }
                 pair_metrics.append(pair_info)
 
@@ -259,9 +281,9 @@ def main_loop():
         snapshot = tracemalloc.take_snapshot()
         top_stats = snapshot.statistics('lineno')
 
-        print("[Top 10 memory consuming lines]")
+        debug_log(logger, "memory_management", "[Top 10 memory consuming lines]")
         for stat in top_stats[:10]:
-            print(stat)
+            debug_log(logger, "memory_management", stat)
 
     except KeyboardInterrupt:
         # Código similar pero también guarda el submap actual de forma individual
@@ -287,9 +309,9 @@ def main_loop():
             snapshot = tracemalloc.take_snapshot()
             top_stats = snapshot.statistics('lineno')
 
-            print("[Top 10 memory consuming lines]")
+            debug_log(logger, "memory_management", "[Top 10 memory consuming lines]")
             for stat in top_stats[:10]:
-                print(stat)
+                debug_log(logger, "memory_management", stat)
             
         sys.exit(1)
     

@@ -5,14 +5,14 @@ from pathlib import Path
 import numpy as np
 
 # En tu caso, ajusta la ruta según corresponda
-timestamp_name = '20250319_192554'
+timestamp_name = '20250331_181747_2_parallax_trans_error_deg'
 output_dir = Path(f'./output/plot_images/plotly/{timestamp_name}')
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # ------------------------------------------------------------------
 # 1) Carga del JSON
 # ------------------------------------------------------------------
-json_path = './output/error_measurement/seq_001/superpoint-lg/20250319_192554/sequence_seq_001_20250319_222139.json'
+json_path = './output/error_measurement/seq_001/superpoint-lg/20250331_181747_2_parallax_trans_error_deg/sequence_seq_001_20250331_185116.json'
 with open(json_path, 'r') as f:
     data = json.load(f)
 

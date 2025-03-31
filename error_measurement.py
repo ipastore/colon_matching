@@ -81,14 +81,14 @@ min_shared_points = 15 # for filtering image pairs
 min_track_len = 3 # for filtering image pairs
 max_reproj_error = 2.0 # for filtering image pairs
 ############################ Parallax #############################
-min_parallax = 1 # for robust estimation of relative pose (degrees)
+min_parallax = 2 # for robust estimation of relative pose (degrees)
 ############################# Min Pairs for submap #############################
 min_pairs_for_submap = 10 # for skipping submaps with too few pairs
 ############################# Min Matches for pose estimation #############################
 min_matches_for_pose = 8 # for skipping pairs with too few matches
 ############################# Thresholds #############################
 thresholds_r = np.linspace(0.1, 5, 10)
-thresholds_t = np.linspace(0.01, 0.1, 10)
+thresholds_t = np.linspace(1, 70, 10)
 
 
 

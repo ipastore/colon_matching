@@ -67,23 +67,65 @@ def compute_AA(rot_errors_deg, trans_errors_m, thresholds_r, thresholds_t):
     
     return np.mean(accuracies)
 
+# #TODO colon_matching: option1 OLD
+# def translation_error_realative_to_t_colmap(t_colmap: np.ndarray, t_est: np.ndarray) -> float:
+#     """
+#     Compute translation normalized relative error between two translation vectors.
 
-def translation_error(t_colmap: np.ndarray, t_est: np.ndarray) -> float:
-    """
-    Compute translation error in meters between two translation vectors.
-    Both must be in the same coordinate scale. 
-    """
+#     """
+#     assert t_colmap.shape == (3,), "t_colmap must be shape (3,)"
+#     assert t_est.shape == (3,),    "t_est must be shape (3,)"
+
+#     # Scale the estimated translation to match the scale of the COLMAP translation
+#     scale_factor = np.linalg.norm(t_colmap) / np.linalg.norm(t_est)
+#     t_est_scaled = t_est * scale_factor
+
+#     # Compute the normalized error
+#     err = np.linalg.norm(t_colmap - t_est_scaled) / np.linalg.norm(t_colmap)
+
+#     return err
+
+# #TODO colon_matching: option2 NOT USED
+# def translation_error_unit(t_colmap: np.ndarray, t_est: np.ndarray) -> float:
+#     """
+#     Mide la diferencia entre las direcciones de t_colmap y t_est,
+#     ambos normalizados a vectores unitarios. Devuelve la norma
+#     de la diferencia, es decir, en [0, 2].
+#     """
+#     assert t_colmap.shape == (3,), "t_colmap must be shape (3,)"
+#     assert t_est.shape == (3,),    "t_est must be shape (3,)"
+
+#     norm_colmap = np.linalg.norm(t_colmap) 
+#     norm_est    = np.linalg.norm(t_est)   
+
+#     t_colmap_unit = t_colmap / norm_colmap
+#     t_est_unit    = t_est    / norm_est
+
+#     # Error = || (unit_colmap - unit_est) ||
+#     # Va de 0 (idénticos) a 2 (opuestos en dirección)
+#     err = np.linalg.norm(t_colmap_unit - t_est_unit)
+#     return err
+
+#TODO colon_matching: option3
+def translation_error_direction_deg(t_colmap: np.ndarray, t_est: np.ndarray) -> float:
+
     assert t_colmap.shape == (3,), "t_colmap must be shape (3,)"
     assert t_est.shape == (3,),    "t_est must be shape (3,)"
+    
+    # Normalize the translation vectors
+    t_colmap_unit = t_colmap / np.linalg.norm(t_colmap)
+    t_est_unit    = t_est    / np.linalg.norm(t_est)
 
-    # Scale the estimated translation to match the scale of the COLMAP translation
-    scale_factor = np.linalg.norm(t_colmap) / (1e-9 + np.linalg.norm(t_est))
-    t_est_scaled = t_est * scale_factor
+    # Compute the angle between the two normalized vectors
+    cos_angle = np.dot(t_colmap_unit, t_est_unit)
 
-    # Compute error
-    err = np.linalg.norm(t_colmap - t_est_scaled)
+    # Clip the value to avoid numerical issues
+    cos_angle = np.clip(cos_angle, -1.0, 1.0)
 
-    return err
+    # Compute the angle in radians
+    err = np.arccos(cos_angle)  
+
+    return np.degrees(err)  
 
 def rotation_error_deg(R_colmap: np.ndarray, R_est: np.ndarray) -> float:
     """

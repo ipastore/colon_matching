@@ -81,7 +81,7 @@ min_shared_points = 15 # for filtering image pairs
 min_track_len = 3 # for filtering image pairs
 max_reproj_error = 2.0 # for filtering image pairs
 ############################ Parallax #############################
-min_parallax = 5 # for robust estimation of relative pose (degrees)
+min_parallax = 1 # for robust estimation of relative pose (degrees)
 ############################# Min Pairs for submap #############################
 min_pairs_for_submap = 10 # for skipping submaps with too few pairs
 ############################# Min Matches for pose estimation #############################
@@ -198,11 +198,11 @@ def main_loop():
                 # rotation error
                 rot_err = rotation_error_deg(R01_colmap, R01_est)
                 # translation error relative to the diameter of the submap
-                trans_err = translation_error(t01_colmap, t01_est)
+                trans_err = translation_error_direction_deg(t01_colmap, t01_est)
                 pair_end_time = time.perf_counter()
                 
-                debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} trans_error: {trans_err:.3f}" )
-                debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} rot_error: {rot_err:.3f}" )
+                debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} trans_error: {trans_err:.3f} degrees" )
+                debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} rot_error: {rot_err:.3f} degrees" )
 
                 submap_rot_errs.append(rot_err)
                 submap_trans_errs.append(trans_err)
@@ -219,7 +219,7 @@ def main_loop():
                     "filter_time": filter_time,
                     "matcher_time": match_time,
                     "total_pair_time": pair_end_time - pair_start_time,
-                    "rot_error_deg":  rot_err,
+                    "rot_error":  rot_err,
                     "trans_error":    trans_err,
                     "covis_score": covis_score,
                     "parallax": parallax

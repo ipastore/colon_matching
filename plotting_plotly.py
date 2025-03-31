@@ -39,12 +39,14 @@ for submap_id, submap_data in submaps_dict.items():
             'submap_id': submap_id,
             'image0': pair["image0"],
             'image1': pair["image1"],
-            'rot_error_deg': pair["rot_error_deg"],
+            'rot_error': pair["rot_error"],
             'trans_error': pair["trans_error"],
             'mkpts0': mkpts0,
             'mkpts1': mkpts1,
             'Total_img': total_img,
-            'Nimg_percentage': nimg_percentage
+            'Nimg_percentage': nimg_percentage,
+            'parallax': pair["parallax"],
+            "covis_score": pair["covis_score"]
         }
         rows.append(row)
 
@@ -57,20 +59,20 @@ print(df.head())
 fig = px.box(
     df,
     x="submap_id",
-    y="rot_error_deg",
+    y="rot_error",
     points="all",  # "all" para mostrar todos los puntos
-    hover_data=["image0","image1","mkpts0","mkpts1","Total_img","Nimg_percentage"]
+    hover_data=["image0", "image1", "mkpts0", "mkpts1", "Total_img", "Nimg_percentage", "parallax", "covis_score", "trans_error"],
 )
 
 # Si tienes rotaciones de hasta 180°, podrías forzar el rango:
 # fig.update_yaxes(range=[0, 180])  # Descomenta si quieres limitar a 180° máximo
 
 fig.update_layout(
-    title="Distribución de Error de Rotación por Submap (Interactivo)",
+    title="Distribution of Rotation Error by Submap",
     yaxis_title="Rot. Error (deg)"
 )
 
-rotation_file = output_dir / "rotacion_error_boxplot.html"
+rotation_file = output_dir / "rot_error_boxplot.html"
 fig.write_html(rotation_file)
 print(f"Saved rotation boxplot to {rotation_file}")
 
@@ -82,18 +84,17 @@ fig = px.box(
     x="submap_id",
     y="trans_error",
     points="all",
-    hover_data=["image0","image1","mkpts0","mkpts1","Total_img","Nimg_percentage"]
+    hover_data=["image0", "image1", "mkpts0", "mkpts1", "Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error"],
 )
-
 # Si quieres ampliar el rango (p.ej. hasta 5), haz:
 # fig.update_yaxes(range=[0, 5])
 
 fig.update_layout(
-    title="Distribución de Error de Translación por Submap (Interactivo)",
-    yaxis_title="Trans. Error"
+    title="Distribution of error of Translation (degrees between translation vectors) by Submap",
+    yaxis_title="Trans. Error (deg)"
 )
 
-translation_file = output_dir / "traslacion_error_boxplot.html"
+translation_file = output_dir / "trans_error_boxplot.html"
 fig.write_html(translation_file)
 print(f"Saved translation boxplot to {translation_file}")
 
@@ -103,19 +104,19 @@ print(f"Saved translation boxplot to {translation_file}")
 # ------------------------------------------------------------------
 fig = px.histogram(
     df,
-    x="rot_error_deg",
+    x="rot_error",
     color="submap_id",
     marginal="box",
-    hover_data=["image0","image1","mkpts0","mkpts1","Total_img","Nimg_percentage"],
+    hover_data=["image0", "image1", "mkpts0", "mkpts1", "Total_img", "Nimg_percentage", "parallax", "covis_score", "trans_error"],
     nbins=1800,         # Aumentar bins
     # range_x=[0, 180]  # Si quieres ver hasta 180°
 )
 fig.update_layout(
-    title="Histograma de Errores de Rotación por Submap",
+    title="Distribution of Rotation Error by Submap",
     xaxis_title="Rot. Error (deg)"
 )
 
-rotation_hist_file = output_dir / "rotacion_error_histogram.html"
+rotation_hist_file = output_dir / "rot_error_histogram.html"
 fig.write_html(rotation_hist_file)
 print(f"Saved rotation histogram to {rotation_hist_file}")
 
@@ -127,15 +128,15 @@ fig = px.histogram(
     x="trans_error",
     color="submap_id",
     marginal="box",
-    hover_data=["image0","image1","mkpts0","mkpts1","Total_img","Nimg_percentage"],
+    hover_data=["image0", "image1", "mkpts0", "mkpts1", "Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error"],
     nbins=1800,         # Ajusta según el rango y lo que desees
     # range_x=[0, 5]    # Si quieres llegar hasta 5
 )
 fig.update_layout(
-    title="Histograma de Errores de Translación por Submap",
+    title="Distribution of Translation Error (degrees between translation vectors) by Submap",
     xaxis_title="Trans. Error"
 )
 
-translation_hist_file = output_dir / "traslacion_error_histogram.html"
+translation_hist_file = output_dir / "trans_error_histogram.html"
 fig.write_html(translation_hist_file)
 print(f"Saved translation histogram to {translation_hist_file}")

@@ -260,7 +260,7 @@ def filter_3D_points(reconstruction, min_track_len, max_reproj_error):
             valid_points.add(p3d_id)
     return valid_points
     
-def filter_image_pairs(
+def filter_image_pairs_greedy_sequential(
     images,
     reconstruction,
     covisibility_graph,
@@ -289,6 +289,8 @@ def filter_image_pairs(
     """
 
     final_pairs = []
+
+    #TODO colon: check if it is necessary to filter the 3D points. To by pass, set parameters to 0
     valid_points = filter_3D_points(reconstruction, min_track_len, max_reproj_error)
     
     i = 0
@@ -377,6 +379,123 @@ def filter_image_pairs(
         if not match_found:
             i+=1
             debug_log(logger, 'filter_image_pairs', f"No match found for {img0_name}. Skipping to next image.")
+
+    debug_log(logger, 'filter_image_pairs', f"{len(images)} initial images")
+    debug_log(logger, 'filter_image_pairs', f"{len(final_pairs)} pairs passed all filters")
+    
+    return final_pairs
+
+def filter_image_pairs(
+    images,
+    reconstruction,
+    covisibility_graph,
+    min_parallax=0.0,
+    covisibility_threshold=0.0,
+    min_track_len=3,
+    max_reproj_error=2.0,
+    min_shared_points=15,
+    logger=None
+):
+    """
+    Filter image pairs using exhaustive matching (compare all possible pairs).
+    
+    Args:
+        images (list): List of image paths or image names
+        reconstruction (pycolmap.Reconstruction): COLMAP reconstruction object
+        covisibility_graph (dict): Covisibility graph from load_covisibility_graph()
+        covisibility_threshold (float): Minimum 3D covisibility score to include a pair
+        min_track_len (int): Minimum track length for 3D covisibility computation
+        max_reproj_error (float): Maximum reprojection error for 3D covisibility computation
+        min_shared_points (int): Minimum number of 3D points shared between images
+        logger: Optional logger object for info and warnings
+        
+    Returns:
+        list: List of dicts, each with keys: img0, img1, shared_points, covis_score, median_parallax
+    """
+
+    final_pairs = []
+
+    # Filter 3D points based on track length and reprojection error
+    valid_points = filter_3D_points(reconstruction, min_track_len, max_reproj_error)
+    
+    # Exhaustive matching: check all possible pairs
+    for i in range(len(images)):
+        img0 = images[i]
+        img0_name = img0.name if hasattr(img0, 'name') else img0
+
+        # Get all possible pairs with images after this one
+        for j in range(i + 1, len(images)):
+            img1 = images[j]
+            img1_name = img1.name if hasattr(img1, 'name') else img1
+            
+            # Filter 1: Check if img0 and img1 are neighbors in the covisibility graph
+            if img0_name not in covisibility_graph:
+                debug_log(logger, 'filter_image_pairs', f"{img0_name} not found in covisibility graph.")
+                continue
+            
+            if img1_name not in covisibility_graph[img0_name]:
+                debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) not neighbors in covisibility graph. Skipping.")
+                continue
+            
+            # Get the 'Image' objects
+            imageA = reconstruction.find_image_with_name(img0_name)
+            imageB = reconstruction.find_image_with_name(img1_name)
+            
+            if imageA is None or imageB is None:
+                debug_log(logger, 'filter_image_pairs', f"Could not find images in reconstruction. Skipping pair.")
+                continue
+            
+            # Filter 2: Shared 3D points
+            pointsA = {pt.point3D_id for pt in imageA.points2D if pt.has_point3D()}
+            pointsB = {pt.point3D_id for pt in imageB.points2D if pt.has_point3D()}
+            
+            # Intersect with the valid points (filtered)
+            pointsA_valid = pointsA.intersection(valid_points)
+            pointsB_valid = pointsB.intersection(valid_points)
+                
+            shared_points = pointsA_valid.intersection(pointsB_valid)
+            n_shared = len(shared_points)
+            
+            if n_shared < min_shared_points:
+                debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) has only {n_shared} shared points < {min_shared_points}. Skipping.")
+                continue
+            
+            # Filter 3: Covisibility score
+            min_count = min(len(pointsA_valid), len(pointsB_valid))
+            covis_score = n_shared / float(min_count)
+            
+            if covis_score < covisibility_threshold:
+                debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) has low covisibility score {covis_score:.3f} < {covisibility_threshold}. Skipping.")
+                continue
+
+            # Filter 4: Check parallax angle        
+            camera_center_A = imageA.cam_from_world.inverse().translation
+            camera_center_B = imageB.cam_from_world.inverse().translation
+
+            parallax_angles = [
+                compute_parallax(reconstruction.points3D[pid].xyz, camera_center_A, camera_center_B)
+                for pid in shared_points
+            ]
+
+            if len(parallax_angles) == 0:
+                debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) has no parallax angles. WARNING.")
+                continue
+
+            median_parallax = np.median(parallax_angles)
+            if median_parallax < min_parallax:
+                debug_log(logger, 'filter_image_pairs',
+                          f"Pair ({img0_name}, {img1_name}) rejected: parallax {(median_parallax):.2f}° < {min_parallax:.2f}°")
+                continue
+        
+            # This pair passed all filters, add to final pairs
+            final_pairs.append({
+                "img0": img0,
+                "img1": img1,
+                "shared_points": n_shared,
+                "covis_score": covis_score,
+                "median_parallax": median_parallax,
+            })
+            debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) passed all filters.")
 
     debug_log(logger, 'filter_image_pairs', f"{len(images)} initial images")
     debug_log(logger, 'filter_image_pairs', f"{len(final_pairs)} pairs passed all filters")

@@ -81,7 +81,7 @@ min_shared_points = 15 # for filtering image pairs
 min_track_len = 3 # for filtering image pairs
 max_reproj_error = 2.0 # for filtering image pairs
 ############################ Parallax #############################
-min_parallax = 2 # for robust estimation of relative pose (degrees)
+min_parallax = 1 # for robust estimation of relative pose (degrees)
 ############################# Min Pairs for submap #############################
 min_pairs_for_submap = 10 # for skipping submaps with too few pairs
 ############################# Min Matches for pose estimation #############################
@@ -114,8 +114,8 @@ def main_loop():
 
     try:
         # Iterate over all the submaps in the sequence
-        # for submap in [submaps[39]]:               ######################### FOR DEBUGGING
-        for submap in submaps:
+        for submap in [submaps[9]]:               ######################### FOR DEBUGGING
+        # for submap in submaps:
             logger.info(f"Starting submap: {submap}")
             # Define the paths for the submap model and the source of images of the mode
             sparse_model_dir = seq_dir / 'sparse' / submap

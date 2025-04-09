@@ -31,9 +31,10 @@ device_info = get_device_info(device)
 DEBUG = True  # Global debug flag. Set to False to disable extra debug logging.
 # activated_debug_flags = {"match_image_pairs", "error_measurement"} 
 # "filter_image_pairs", "filter_image_feats_with_mask", "easy_medium_hard", "filter_image_feats_with_mask"
-#  "filter_feat_dict_with_mask", "base_matcher_forward", "Roma_forward", "Roma_forward_symmetric", "TinyRoma_forward"
+#  "filter_feat_dict_with_mask", "base_matcher_forward", "Roma_forward", "Roma_forward_symmetric", "TinyRoma_forward",
+# "trans_error"
 # activated_debug_flags = {"ALL"}
-activated_debug_flags = {"filter_image_pairs"}
+activated_debug_flags = {"filter_image_pairs","trans_error"}
 ############################# CHOOSE MODELS #############################
 # model_name = 'sift-nn'
 # model_name = 'gim-lg'
@@ -114,7 +115,7 @@ def main_loop():
 
     try:
         # Iterate over all the submaps in the sequence
-        for submap in [submaps[9]]:               ######################### FOR DEBUGGING
+        for submap in [submaps[14]]:               ######################### FOR DEBUGGING
         # for submap in submaps:
             logger.info(f"Starting submap: {submap}")
             # Define the paths for the submap model and the source of images of the mode
@@ -200,8 +201,14 @@ def main_loop():
                 # translation error relative to the diameter of the submap
                 trans_err = translation_error_direction_deg(t01_colmap, t01_est)
                 pair_end_time = time.perf_counter()
-                
-                debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} trans_error: {trans_err:.3f} degrees" )
+
+               
+                debug_log(logger, "trans_error", f"mkpts0_min_x: {np.min(result_matcher['matched_kpts0'][:, 0]):.3f} → {np.max(result_matcher['matched_kpts0'][:, 0]):.3f}")
+                debug_log(logger, "trans_error", f"mkpts0_min_y: {np.min(result_matcher['matched_kpts0'][:, 1]):.3f} → {np.max(result_matcher['matched_kpts0'][:, 1]):.3f}")
+                debug_log(logger, "trans_error", f"t_01_colmap: {t01_colmap}")
+                debug_log(logger, "trans_error", f"t_01_est: {t01_est}")
+                debug_log(logger, "trans_error", f"||t_colmap||: {np.linalg.norm(t01_colmap):.3f}, ||t_est||: {np.linalg.norm(t01_est):.3f}")
+                debug_log(logger, "trans_error",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} trans_error: {trans_err:.3f} degrees" )
                 debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} rot_error: {rot_err:.3f} degrees" )
 
                 submap_rot_errs.append(rot_err)
@@ -230,6 +237,17 @@ def main_loop():
                 registered_images.add(img0_path.name)
                 registered_images.add(img1_path.name)
                 
+                # Save the result of the matcher in hard disk
+                save_result_matcher_npz(
+                    output_submap_dir,
+                    model_name,
+                    result_matcher,
+                    img0_path.name,
+                    img1_path.name,
+                    R01_est,
+                    t01_est
+                )
+                                
                 del result_matcher, R01_est, t01_est, R01_colmap, t01_colmap, image0, image1, camera0, camera1, pair_info
                 gc.collect()
                 if torch.cuda.is_available():

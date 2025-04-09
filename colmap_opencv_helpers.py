@@ -169,22 +169,22 @@ def adapt_mkpts_to_colmap(mkpts):
     mkpts_colmap = mkpts + 0.5
     return mkpts_colmap
 
-def compute_relative_pose(cam_from_world1, cam_from_world2):
+def compute_relative_pose(cam0_from_world, cam1_from_world):
     """
     Compute relative pose (R, t) between two camera absolute poses.
 
     Args:
-        cam_from_world1 (pycolmap.Rigid3d): Absolute pose of camera 1 (world -> cam1).
-        cam_from_world2 (pycolmap.Rigid3d): Absolute pose of camera 2 (world -> cam2).
+        cam0_from_world (pycolmap.Rigid3d): Absolute pose of camera 0 (world -> cam0).
+        cam1_from_world (pycolmap.Rigid3d): Absolute pose of camera 1 (world -> cam1).
 
     Returns:
-        R_rel (numpy.ndarray): 3x3 relative rotation matrix. (cam1 -> cam2)
-        t_rel (numpy.ndarray): 3x1 relative translation vector. (cam1 -> cam2)
+        R_01 (numpy.ndarray): 3x3 relative rotation matrix. (cam0 -> cam1)
+        t_01 (numpy.ndarray): 3x1 relative translation vector. (cam0 -> cam1)
     """
     
-    cam2_from_cam1 = cam_from_world1.inverse() * cam_from_world2 
+    cam1_from_cam0 = cam0_from_world.inverse() * cam1_from_world 
 
-    return cam2_from_cam1.rotation.matrix(), cam2_from_cam1.translation
+    return cam1_from_cam0.rotation.matrix(), cam1_from_cam0.translation
 
 
 
@@ -561,7 +561,62 @@ def get_relative_pose_from_matcher(img0_path, img1_path, camera0, camera1,
     # Extract R and t from the essential matrix
     R01_est = result_colmap['cam2_from_cam1'].rotation.matrix()
     t01_est = result_colmap['cam2_from_cam1'].translation
+    inlier_mask = result_colmap['inlier_mask']
+
+    # Load the inliers from COLMAP
+    result_matcher['inliers'] = inlier_mask
 
     del result_colmap, corrected_mkpts0, corrected_mkpts1, mkpts0, mkpts1, matcher
     gc.collect()
     return result_matcher, R01_est, t01_est, extractor_time, filter_time, match_time
+
+from pathlib import Path
+import numpy as np
+
+def save_result_matcher_npz(save_dir: Path,
+                            model_name: str,
+                            result_matcher: dict,
+                            image0_name: str,
+                            image1_name: str,
+                            R_est: np.ndarray = None,
+                            t_est: np.ndarray = None):
+    """
+    Save result_matcher and metadata as .npz in subfolder 'npz'.
+    """
+    npz_dir = save_dir / "npz"
+    npz_dir.mkdir(parents=True, exist_ok=True)
+
+    save_path = npz_dir / f"{Path(image0_name).stem}_{Path(image1_name).stem}_{model_name}.npz"
+
+    np.savez_compressed(
+        save_path,
+        matched_kpts0=result_matcher.get('matched_kpts0'),
+        matched_kpts1=result_matcher.get('matched_kpts1'),
+        all_kpts0=result_matcher.get('all_kpts0'),
+        all_kpts1=result_matcher.get('all_kpts1'),
+        scores=result_matcher.get('scores'),
+        inliers=result_matcher.get('inliers'),
+        image0=image0_name,
+        image1=image1_name,
+        R_est=R_est,
+        t_est=t_est
+    )
+
+def load_result_matcher_npz(npz_path: Path) -> dict:
+    """
+    Load result_matcher and metadata from .npz file.
+    """
+    data = np.load(npz_path, allow_pickle=True)
+    return {
+        "matched_kpts0": data["matched_kpts0"],
+        "matched_kpts1": data["matched_kpts1"],
+        "all_kpts0": data["all_kpts0"],
+        "all_kpts1": data["all_kpts1"],
+        "scores": data.get("scores", None),
+        "inliers": data.get("inliers", None),
+        "image0": str(data["image0"]),
+        "image1": str(data["image1"]),
+        "R_est": data.get("R_est", None),
+        "t_est": data.get("t_est", None)
+    }
+

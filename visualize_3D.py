@@ -1,10 +1,16 @@
 import numpy as np
 from pathlib import Path
-import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import pycolmap
 import cv2
 from colmap_opencv_helpers import compute_relative_pose, translation_error_direction_deg, rotation_error_deg
+import sys
+import matplotlib
+
+matplotlib.use("TkAgg")  # o "QtAgg" si preferís Qt
+
+import matplotlib.pyplot as plt
+
 
 def load_result_matcher_npz(npz_path: Path) -> dict:
     """
@@ -17,12 +23,20 @@ def load_result_matcher_npz(npz_path: Path) -> dict:
         "all_kpts0": data["all_kpts0"],
         "all_kpts1": data["all_kpts1"],
         "scores": data.get("scores", None),
-        "inliers": data.get("inliers", None),
+        "inlier_kpts0": data.get("inlier_kpts0", None),
+        "inlier_kpts1": data.get("inlier_kpts1", None),
         "image0": str(data["image0"]),
         "image1": str(data["image1"]),
         "R_est": data.get("R_est", None),
         "t_est": data.get("t_est", None)
     }
+
+def rigid3d_to_matrix4x4(rigid: pycolmap.Rigid3d) -> np.ndarray:
+    T = np.eye(4)
+    T[:3, :3] = rigid.rotation.matrix()
+    T[:3, 3] = rigid.translation
+    return T
+
 
 def drawRefSystem(ax, T_w_c, strStyle, nameStr):
     """
@@ -51,6 +65,41 @@ def draw3DLine(ax, xIni, xEnd, strStyle, lColor, lWidth):
     """
     ax.plot([np.squeeze(xIni[0]), np.squeeze(xEnd[0])], [np.squeeze(xIni[1]), np.squeeze(xEnd[1])], [np.squeeze(xIni[2]), np.squeeze(xEnd[2])],
             strStyle, color=lColor, linewidth=lWidth)
+
+def draw_plane_between_vectors(ax, origin, endpoint1, endpoint2, alpha=0.2, color='cyan'):
+    """
+    Draw a transparent triangular plane between two vectors that share the same origin
+    
+    Args:
+        ax: Matplotlib 3D axis
+        origin: Origin point of both vectors (3,)
+        endpoint1: Endpoint of first vector (3,)
+        endpoint2: Endpoint of second vector (3,)
+        alpha: Transparency value (0-1)
+        color: Color of the plane
+    """
+    # Create vertices for the triangular plane
+    vertices = np.array([origin.flatten(), endpoint1.flatten(), endpoint2.flatten()])
+    
+    # Create triangular face
+    tri = [[0, 1, 2]]
+    
+    # Plot the triangular surface
+    ax.plot_trisurf(vertices[:, 0], vertices[:, 1], vertices[:, 2], 
+                   triangles=tri, alpha=alpha, color=color, shade=True)
+    
+    # Calculate and return the angle between vectors
+    vec1 = endpoint1.flatten() - origin.flatten()
+    vec2 = endpoint2.flatten() - origin.flatten()
+    
+    # Normalize vectors
+    vec1 = vec1 / np.linalg.norm(vec1)
+    vec2 = vec2 / np.linalg.norm(vec2)
+    
+    # Calculate angle in degrees
+    angle = np.arccos(np.clip(np.dot(vec1, vec2), -1.0, 1.0)) * 180 / np.pi
+    
+    return angle
 
 def triangulate_points(kpts0, kpts1, K0, K1, D0, D1, R, t):
     """
@@ -91,7 +140,7 @@ def pose_to_transformation_matrix(R, t):
     T[:3, 3] = t.ravel()
     return T
 
-def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=False):
+def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=False, show_individual_camera_points=False):
     """
     Visualize 3D reconstruction comparing COLMAP points with optional triangulated points
     
@@ -99,6 +148,7 @@ def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=Fa
         npz_path: Path to .npz file with matching results
         sparse_model_dir: Path to COLMAP sparse reconstruction directory
         show_triangulated: Whether to show triangulated points (default: False)
+        show_individual_camera_points: Whether to show points visible only in camera 0 or 1 (default: False)
     """
     # Load matching results
     match_data = load_result_matcher_npz(Path(npz_path))
@@ -106,16 +156,14 @@ def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=Fa
     # Extract data from match_data
     matched_kpts0 = match_data["matched_kpts0"]
     matched_kpts1 = match_data["matched_kpts1"]
-    inliers_mask = match_data["inliers"]
+    inlier_kpts0 = match_data["inlier_kpts0"]
+    inlier_kpts1 = match_data["inlier_kpts1"]
     R01_est = match_data["R_est"]
     t01_est = match_data["t_est"]
     image0_name = match_data["image0"]
     image1_name = match_data["image1"]
     
-    if inliers_mask is None:
-        print("No inliers mask found in the data. Assuming all points are inliers.")
-        inliers_mask = np.ones(len(matched_kpts0), dtype=bool)
-    
+
     # Load COLMAP reconstruction
     reconstruction = pycolmap.Reconstruction(sparse_model_dir)
     
@@ -136,7 +184,7 @@ def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=Fa
     K1 = camera1.calibration_matrix()
     
     # Get distortion coefficients (if any)
-    if camera0.model_name() in ["OPENCV", "OPENCV_FISHEYE", "FULL_OPENCV"]:
+    if camera0.model.name in ["OPENCV", "OPENCV_FISHEYE", "FULL_OPENCV"]:
         D0 = np.array(camera0.params[4:])
         D1 = np.array(camera1.params[4:])
     else:
@@ -144,11 +192,15 @@ def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=Fa
         D1 = None
     
     # Get absolute poses (world to camera)
-    T_w_c0_colmap = image0.cam_from_world.inverse().matrix()
-    T_w_c1_colmap = image1.cam_from_world.inverse().matrix()
+    T_w_c0_colmap = image0.cam_from_world.inverse()
+    T_w_c1_colmap = image1.cam_from_world.inverse()
     
     # Get relative pose from pose0 to pose1 (for triangulation if needed)
     R01_colmap, t01_colmap = compute_relative_pose(T_w_c0_colmap, T_w_c1_colmap)
+
+    # Convert to 4x4 transformation matrices for future computations
+    T_w_c0_colmap = rigid3d_to_matrix4x4(T_w_c0_colmap)
+    T_w_c1_colmap = rigid3d_to_matrix4x4(T_w_c1_colmap)
     
     # Create 3D figure
     fig = plt.figure(figsize=(12, 10))
@@ -158,23 +210,66 @@ def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=Fa
     world_frame = np.eye(4)
     drawRefSystem(ax, world_frame, '-', 'World')
     
-    # Draw camera coordinate systems in world frame
-    T_c0_w_colmap = T_w_c0_colmap.inverse().matrix()
-    T_c1_w_colmap = T_w_c1_colmap.inverse().matrix()
-    
-    drawRefSystem(ax, T_c0_w_colmap, '-', 'Cam0 (COLMAP)')
-    drawRefSystem(ax, T_c1_w_colmap, '-', 'Cam1 (COLMAP)')
+    T_c0_w_colmap = rigid3d_to_matrix4x4(image0.cam_from_world)
+    T_c1_w_colmap = rigid3d_to_matrix4x4(image1.cam_from_world)
+    # Draw camera coordinate systems
+    drawRefSystem(ax, T_w_c0_colmap, '-', 'Cam0 (COLMAP)')
+    drawRefSystem(ax, T_w_c1_colmap, '-', 'Cam1 (COLMAP)')
     
     # If we have estimated pose, convert to world coordinates and plot
     if R01_est is not None and t01_est is not None:
         # Create estimated 1->0 transformation
-        T_c0_c1_est = pose_to_transformation_matrix(R01_est, t01_est)
+        scale = np.linalg.norm(t01_colmap)
+        t01_est_scaled = t01_est * scale
+        T_c0_c1_est = pose_to_transformation_matrix(R01_est, t01_est_scaled)
         T_c1_c0_est = np.linalg.inv(T_c0_c1_est)
         
         # Convert to world coordinates: 
-        T_c1_w_est = T_c1_c0_est @ T_c0_w_colmap 
+        T_c1_w_est = T_c1_c0_est @ T_c0_w_colmap
+        T_w_c1_est = np.linalg.inv(T_c1_w_est)
         
-        drawRefSystem(ax, T_c1_w_est, '--', 'Cam1 (Est)')
+        drawRefSystem(ax, T_w_c1_est, '--', 'Cam1 (Est)')
+        
+        # Draw vector from Cam0 to Cam1 (Est)
+        cam0_pos = T_w_c0_colmap[:3, 3:4]  # Camera position as column vector
+        cam1_est_pos = T_w_c1_est[:3, 3:4]
+        # Draw a black arrow as a vector
+        ax.quiver(
+            cam0_pos[0], cam0_pos[1], cam0_pos[2], 
+            cam1_est_pos[0] - cam0_pos[0], cam1_est_pos[1] - cam0_pos[1], cam1_est_pos[2] - cam0_pos[2],
+            color='black', arrow_length_ratio=0.1, linewidth=2, label='Vector Cam0→Cam1 (Est)'
+        )
+    
+    # Draw vector from Cam0 to Cam1 (COLMAP)
+    cam0_pos = T_w_c0_colmap[:3, 3:4]  # Camera position as column vector
+    cam1_colmap_pos = T_w_c1_colmap[:3, 3:4]
+    # Draw a black arrow as a vector
+    ax.quiver(
+        cam0_pos[0], cam0_pos[1], cam0_pos[2], 
+        cam1_colmap_pos[0] - cam0_pos[0], cam1_colmap_pos[1] - cam0_pos[1], cam1_colmap_pos[2] - cam0_pos[2],
+        color='black', arrow_length_ratio=0.1, linewidth=2, label='Vector Cam0→Cam1 (COLMAP)'
+    )
+    
+    # If we have estimated pose, draw a plane between the two vectors to visualize the angle
+    if R01_est is not None and t01_est is not None:
+        # Draw a plane between the two vectors
+        angle = draw_plane_between_vectors(
+            ax, 
+            cam0_pos, 
+            cam1_colmap_pos, 
+            cam1_est_pos, 
+            alpha=0.5, 
+            color='cyan'
+        )
+        
+        # Add text annotation for the angle
+        midpoint = (cam1_colmap_pos.flatten() + cam1_est_pos.flatten()) / 2
+        midpoint = (midpoint + cam0_pos.flatten()) / 2
+        offset = 0.2  # Adjust the offset value as needed
+        ax.text(midpoint[0] + offset, midpoint[1] - offset, midpoint[2] - offset, f"{angle:.1f}°", color='black', fontsize=9)
+        
+        # Add to legend
+        ax.plot([], [], color='cyan', alpha=0.8, label=f'Angle between vectors: {angle:.1f}°')
     
     # Extract COLMAP 3D points visible in the images
     points0 = {pt.point3D_id for pt in image0.points2D if pt.has_point3D()}
@@ -198,35 +293,33 @@ def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=Fa
     if shared_points_xyz:
         shared_points_xyz = np.array(shared_points_xyz)
         ax.scatter(shared_points_xyz[:, 0], shared_points_xyz[:, 1], shared_points_xyz[:, 2], 
-                  c='blue', marker='.', s=5, alpha=0.7, label='COLMAP shared points')
+                  c='blue', marker='.', s=20, alpha=0.9, label='COLMAP shared points')
     
-    # Collect and plot points only in image 0
-    only0_points_xyz = []
-    for pid in only0_points:
-        point_world = reconstruction.points3D[pid].xyz
-        only0_points_xyz.append(point_world)
-    
-    if only0_points_xyz:
-        only0_points_xyz = np.array(only0_points_xyz)
-        ax.scatter(only0_points_xyz[:, 0], only0_points_xyz[:, 1], only0_points_xyz[:, 2], 
-                  c='cyan', marker='.', s=3, alpha=0.5, label='COLMAP points (only cam0)')
-    
-    # Collect and plot points only in image 1
-    only1_points_xyz = []
-    for pid in only1_points:
-        point_world = reconstruction.points3D[pid].xyz
-        only1_points_xyz.append(point_world)
-    
-    if only1_points_xyz:
-        only1_points_xyz = np.array(only1_points_xyz)
-        ax.scatter(only1_points_xyz[:, 0], only1_points_xyz[:, 1], only1_points_xyz[:, 2], 
-                  c='magenta', marker='.', s=3, alpha=0.5, label='COLMAP points (only cam1)')
-    
-    if show_triangulated and inliers_mask is not None:
-        # Extract only inlier matches for triangulation
-        inlier_kpts0 = matched_kpts0[inliers_mask]
-        inlier_kpts1 = matched_kpts1[inliers_mask]
+    # Only plot individual camera points if requested
+    if show_individual_camera_points:
+        # Collect and plot points only in image 0
+        only0_points_xyz = []
+        for pid in only0_points:
+            point_world = reconstruction.points3D[pid].xyz
+            only0_points_xyz.append(point_world)
         
+        if only0_points_xyz:
+            only0_points_xyz = np.array(only0_points_xyz)
+            ax.scatter(only0_points_xyz[:, 0], only0_points_xyz[:, 1], only0_points_xyz[:, 2], 
+                      c='cyan', marker='.', s=3, alpha=0.3, label='COLMAP points (only cam0)')
+        
+        # Collect and plot points only in image 1
+        only1_points_xyz = []
+        for pid in only1_points:
+            point_world = reconstruction.points3D[pid].xyz
+            only1_points_xyz.append(point_world)
+        
+        if only1_points_xyz:
+            only1_points_xyz = np.array(only1_points_xyz)
+            ax.scatter(only1_points_xyz[:, 0], only1_points_xyz[:, 1], only1_points_xyz[:, 2], 
+                      c='magenta', marker='.', s=3, alpha=0.3, label='COLMAP points (only cam1)')
+    
+    if show_triangulated:
         if len(inlier_kpts0) > 0:
             # Triangulate points using the COLMAP relative pose
             points_3d_tri = triangulate_points(inlier_kpts0, inlier_kpts1, K0, K1, D0, D1, R01_colmap, t01_colmap)
@@ -262,6 +355,18 @@ def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=Fa
                 ax.scatter(points_est_world[:, 0], points_est_world[:, 1], points_est_world[:, 2], 
                           c='orange', marker='.', s=10, label='Est. triangulated points')
     
+    # Calculate metrics
+    if R01_est is not None and t01_est is not None:
+        rot_error_deg = rotation_error_deg(R01_colmap, R01_est)
+        trans_error_deg = translation_error_direction_deg(t01_colmap, t01_est)
+    else:
+        rot_error_deg = None
+        trans_error_deg = None
+    
+    # Calculate match statistics
+    num_matched = len(matched_kpts0)
+    num_inliers = len(inlier_kpts0) if inlier_kpts0 is not None else 0
+    
     # Set equal aspect ratio for all axes
     ax.set_box_aspect([1, 1, 1])
     
@@ -269,13 +374,46 @@ def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=Fa
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    ax.set_title(f'3D Reconstruction: {Path(image0_name).stem} -> {Path(image1_name).stem}')
     
-    # Add legend
-    ax.legend()
+    # Set title with basic info
+    title = f'3D Reconstruction: {Path(image0_name).stem} → {Path(image1_name).stem}'
+    ax.set_title(title)
     
-    # Adjust view to see the scene better
-    ax.view_init(elev=30, azim=-60)
+    # Add detailed metrics as text annotation with a fixed position
+    if rot_error_deg is not None and trans_error_deg is not None:
+        metrics_text = (
+            f"Rotation error: {rot_error_deg:.2f}°\n"
+            f"Translation error: {trans_error_deg:.2f}°\n"
+            f"Matches: {num_matched}\n"
+            f"Inliers : {num_inliers:.2f}"
+        )
+        # Position the text in the top-left corner with a fixed position
+        # Use a figure-relative position instead of axis-relative
+        plt.figtext(0.02, 0.95, metrics_text,
+                 bbox=dict(facecolor='white', alpha=0.9, boxstyle='round', pad=0.5),
+                 fontsize=10, verticalalignment='top')
+    
+    # Add legend with a fixed position outside of the plot area
+    # This prevents it from moving around when the plot is rotated
+    legend = ax.legend(
+        markerscale=3.0,  # Makes the markers in the legend 3x larger
+        loc='upper right',  # Position at upper right
+        bbox_to_anchor=(1.15, 1),  # Place it outside the plot area
+        fontsize=9,
+        framealpha=0.9,  # Make the legend background more opaque
+        fancybox=True,  # Rounded corners
+        shadow=True  # Add a shadow
+    )
+    
+    # Make sure the legend box background is fully opaque to prevent seeing through it
+    legend.get_frame().set_facecolor('white')
+    
+    center = np.median(shared_points_xyz, axis=0)
+    zoom_radius = 3  # You can tweak this value
+    
+    ax.set_xlim([center[0] - zoom_radius, center[0] + zoom_radius])
+    ax.set_ylim([center[1] - zoom_radius, center[1] + zoom_radius])
+    ax.set_zlim([center[2] - zoom_radius, center[2] + zoom_radius])
     
     # Show the plot
     plt.tight_layout()
@@ -283,9 +421,6 @@ def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=Fa
     
     # Print camera pose errors if available
     if R01_est is not None and t01_est is not None:
-        rot_error_deg = rotation_error_deg(R01_colmap, R01_est)
-        trans_error_deg = translation_error_direction_deg(t01_colmap, t01_est)
-        
         print(f"Rotation error: {rot_error_deg:.2f} degrees")
         print(f"Translation direction error: {trans_error_deg:.2f} degrees")
 
@@ -293,28 +428,32 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Visualize 3D reconstruction from matched keypoints')
-    parser.add_argument('npz_path', type=str, help='Path to the .npz file with matching results')
-    parser.add_argument('colmap_path', type=str, help='Path to the COLMAP sparse reconstruction directory')
+    parser.add_argument('npz_path', type=str, help='Path to the .npz file with matching results', nargs='?')
+    parser.add_argument('colmap_path', type=str, help='Path to the COLMAP sparse reconstruction directory', nargs='?')
     parser.add_argument('--show-triangulated', action='store_true', help='Show triangulated points')
+    parser.add_argument('--show-all-colmap-points', action='store_true', 
+                        help='Show points visible only in individual cameras (default: show only shared points)')
     
     args = parser.parse_args()
     
-    # Default values for flags when running the script directly
-    npz_path = args.npz_path if args.npz_path else "path/to/default.npz"
-    colmap_path = args.colmap_path if args.colmap_path else "path/to/default/colmap"
-    show_triangulated = args.show_triangulated if hasattr(args, 'show_triangulated') else False
-    
-    # Allow tuning flags directly in the script
-    if not args.npz_path or not args.colmap_path:
-        print("Running with default paths and flags. Modify below if needed.")
-        npz_path = "path/to/default.npz"
-        colmap_path = "path/to/default/colmap"
-        show_triangulated = True  # Set to False to disable
+    # Default values for when running the script directly
+    if args.npz_path is None or args.colmap_path is None:
+        # Default paths for testing
+        npz_path = "./output/error_measurement/seq_001/superpoint-lg/20250410_202229/9/npz/out9565_out9707_superpoint-lg.npz"
+        colmap_path = "./data/seq_001/sparse/9"
+        show_triangulated = False
+        show_individual_camera_points = False
+    else:
+        npz_path = args.npz_path
+        colmap_path = args.colmap_path
+        show_triangulated = args.show_triangulated
+        show_individual_camera_points = args.show_all_colmap_points
     
     visualize_3d_reconstruction(
         npz_path,
         colmap_path,
-        show_triangulated=show_triangulated
+        show_triangulated=show_triangulated,
+        show_individual_camera_points=show_individual_camera_points
     )
 
 if __name__ == "__main__":

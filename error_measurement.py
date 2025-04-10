@@ -81,7 +81,7 @@ min_shared_points = 15 # for filtering image pairs
 min_track_len = 3 # for filtering image pairs
 max_reproj_error = 2.0 # for filtering image pairs
 ############################ Parallax #############################
-min_parallax = 1 # for robust estimation of relative pose (degrees)
+min_parallax = 5 # for robust estimation of relative pose (degrees)
 ############################# Min Pairs for submap #############################
 min_pairs_for_submap = 10 # for skipping submaps with too few pairs
 ############################# Min Matches for pose estimation #############################
@@ -114,7 +114,7 @@ def main_loop():
 
     try:
         # Iterate over all the submaps in the sequence
-        for submap in [submaps[14]]:               ######################### FOR DEBUGGING
+        for submap in [submaps[9]]:               ######################### FOR DEBUGGING
         # for submap in submaps:
             logger.info(f"Starting submap: {submap}")
             # Define the paths for the submap model and the source of images of the mode
@@ -205,9 +205,11 @@ def main_loop():
                 trans_err = translation_error_direction_deg(t01_colmap, t01_est)
                 pair_end_time = time.perf_counter()
 
-
                 debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} trans_error: {trans_err:.3f} degrees" )
                 debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} rot_error: {rot_err:.3f} degrees" )
+                debug_log(logger, "error_measurement",f"parallax: {parallax:.3f} degrees" )
+                debug_log(logger, "error_measurement",f"inliers: {result_matcher['num_inliers']}")
+                debug_log(logger, "error_measurement",f"matches: {len(result_matcher['matched_kpts0'])}")
 
                 submap_rot_errs.append(rot_err)
                 submap_trans_errs.append(trans_err)

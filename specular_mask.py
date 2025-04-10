@@ -3,10 +3,83 @@ import numpy as np
 import torch
 import os
 from pathlib import Path
-from matching.utils import get_default_device, to_tensor, to_numpy
 from my_logging import debug_log
 import gc
 from memory_profiler import profile
+import sys
+
+def get_default_device():
+    device = "cpu"
+
+    if sys.platform == "darwin" and torch.backends.mps.is_available():
+        device = "mps"
+
+    elif torch.cuda.is_available():
+        device = "cuda"
+
+    return device
+
+
+def to_numpy(x: torch.Tensor | np.ndarray | dict | list) -> np.ndarray:
+    """convert item or container of items to numpy
+
+    Args:
+        x (torch.Tensor | np.ndarray | dict | list): input
+
+    Returns:
+        np.ndarray: numpy array of input
+    """
+    if isinstance(x, list):
+        return np.array([to_numpy(i) for i in x])
+    if isinstance(x, dict):
+        for k, v in x.items():
+            x[k] = to_numpy(v)
+    if isinstance(x, torch.Tensor):
+        return x.cpu().numpy()
+    if isinstance(x, np.ndarray):
+        return x
+
+
+def to_tensor(x: np.ndarray | torch.Tensor, device: str = None) -> torch.Tensor:
+    """Convert to tensor and place on device
+
+    Args:
+        x (np.ndarray | torch.Tensor): item to convert to tensor
+        device (str, optional): device to place tensor on. Defaults to None.
+
+    Returns:
+        torch.Tensor: tensor with data from `x` on device `device`
+    """
+    if isinstance(x, torch.Tensor):
+        pass
+    elif isinstance(x, np.ndarray):
+        x = torch.from_numpy(x)
+
+    if device is not None:
+        return x.to(device)
+
+
+def to_normalized_coords(pts: np.ndarray | torch.Tensor, height: int, width: int):
+    """normalize kpt coords from px space to [0,1]
+    Assumes pts are in x, y order in array/tensor shape (N, 2)
+
+    Args:
+        pts (np.ndarray | torch.Tensor): array of kpts, must be shape (N, 2)
+        height (int): height of img
+        width (int): width of img
+
+    Returns:
+        np.array: kpts in normalized [0,1] coords
+    """
+    # normalize kpt coords from px space to [0,1]
+    # assume pts are in x,y order
+    assert pts.shape[-1] == 2, f"input to `to_normalized_coords` should be shape (N, 2), input is shape {pts.shape}"
+    pts = to_numpy(pts).astype(float)
+    pts[:, 0] /= width
+    pts[:, 1] /= height
+
+    return pts
+
 
 def create_mask(frame_gray):
     # Create a mask to avoid detection in specularities in the image (bright spots)

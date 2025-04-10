@@ -46,23 +46,23 @@ def match_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, log
                 gc.collect()
                 return  # Skip this pair
             
-            if masking:
+            # Commented because this is plotted upstream. This is an old implementation when only plotting without any E matrix computation for easy, medium and hard cases.
+            # if masking:
+            #     start_plotting = time.perf_counter()
+            #     plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
+            #     plot_matches(masked_img0, masked_img1, result, show_all_kpts=plot_kpts, save_path=plot_path)
+            #     end_plotting = time.perf_counter()
+            #     debug_log(logger, 'match_image_pairs', f'Plotting matches took {end_plotting - start_plotting:.3f} seconds')
+            #     debug_log(logger, 'match_image_pairs', f'Saved plot to {plot_path}')
                 
-                start_plotting = time.perf_counter()
-                plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
-                plot_matches(masked_img0, masked_img1, result, show_all_kpts=plot_kpts, save_path=plot_path)
-                end_plotting = time.perf_counter()
-                debug_log(logger, 'match_image_pairs', f'Plotting matches took {end_plotting - start_plotting:.3f} seconds')
-                debug_log(logger, 'match_image_pairs', f'Saved plot to {plot_path}')
-                
-            else:
-                start_plotting = time.perf_counter()
-                plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
-                plot_matches(img0, img1, result, show_all_kpts=plot_kpts, save_path=plot_path)
-                end_plotting = time.perf_counter()
-                debug_log(logger, 'match_image_pairs', f'Plotting matches took {end_plotting - start_plotting:.3f} seconds')
-                debug_log(logger, 'match_image_pairs', f'Saved plot to {plot_path}')
+            # else:
+            #     start_plotting = time.perf_counter()
+            #     plot_path = output_dir / f'{img_path0.stem}_{img_path1.stem}_{model_name}.png'
+            #     plot_matches(img0, img1, result, show_all_kpts=plot_kpts, save_path=plot_path)
+            #     end_plotting = time.perf_counter()
+            #     debug_log(logger, 'match_image_pairs', f'Plotting matches took {end_plotting - start_plotting:.3f} seconds')
+            #     debug_log(logger, 'match_image_pairs', f'Saved plot to {plot_path}')
             
-            del img0, img1, mask0, mask1, img0_np, img1_np, masked_img0, masked_img1
+            del mask0, mask1, img0_np, img1_np
             gc.collect()
-            return result
+            return result, img0, img1, masked_img0, masked_img1

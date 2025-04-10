@@ -85,7 +85,7 @@ min_parallax = 1 # for robust estimation of relative pose (degrees)
 ############################# Min Pairs for submap #############################
 min_pairs_for_submap = 10 # for skipping submaps with too few pairs
 ############################# Min Matches for pose estimation #############################
-min_matches_for_pose = 8 # for skipping pairs with too few matches
+min_matches_for_pose = 5 # for skipping pairs with too few matches
 ############################# Thresholds #############################
 thresholds_r = np.linspace(0.1, 5, 10)
 thresholds_t = np.linspace(1, 70, 10)
@@ -139,8 +139,12 @@ def main_loop():
             images.sort(key=lambda x: x.name)
 
             # Create pairs of sequential images instead of all combinations
-            pairs = filter_image_pairs(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
-                                    max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)
+            # pairs = filter_image_pairs(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
+            #                         max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)
+
+            pairs = filter_image_pairs_greedy_sequential(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
+                        max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)
+            
             # Compute total images in the submap with the filtered pairs
             total_images_submap = len(set(itertools.chain(*pairs)))
 
@@ -212,8 +216,8 @@ def main_loop():
                 pair_info = {
                     "image0": img0_path.name,
                     "image1": img1_path.name,
-                    "mkpts0": len(result_matcher['matched_kpts0']),
-                    "mkpts1": len(result_matcher['matched_kpts1']),
+                    "mkpts": len(result_matcher['matched_kpts0']),
+                    "inliers": result_matcher['num_inliers'],
                     "kpts0": len(result_matcher['all_kpts0']),
                     "kpts1": len(result_matcher['all_kpts1']),
                     "extractor_time": extractor_time,

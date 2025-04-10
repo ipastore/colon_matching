@@ -30,10 +30,8 @@ for submap_id, submap_data in submaps_dict.items():
     nimg_percentage = submap_data.get("Nimg_percentage", None)
     
     for pair in pairs:
-        # En tu JSON original usabas 'mkpts0'/'mkpts1' en lugar de 'mkpts0'/'mkpts1'
-        # Ajusta aquí si tu JSON no tiene esas llaves exactas.
-        mkpts0 = pair.get("mkpts0", None)
-        mkpts1 = pair.get("mkpts1", None)
+
+        mkpts = pair.get("mkpts", None)
 
         row = {
             'submap_id': submap_id,
@@ -41,8 +39,8 @@ for submap_id, submap_data in submaps_dict.items():
             'image1': pair["image1"],
             'rot_error': pair["rot_error"],
             'trans_error': pair["trans_error"],
-            'mkpts0': mkpts0,
-            'mkpts1': mkpts1,
+            'mkpts': mkpts,
+            'inliers': pair["inliers"],
             'Total_img': total_img,
             'Nimg_percentage': nimg_percentage,
             'parallax': pair["parallax"],
@@ -61,11 +59,9 @@ fig = px.box(
     x="submap_id",
     y="rot_error",
     points="all",  # "all" para mostrar todos los puntos
-    hover_data=["image0", "image1", "mkpts0", "mkpts1", "Total_img", "Nimg_percentage", "parallax", "covis_score", "trans_error"],
+    hover_data=["image0", "image1", "mkpts","inliers", "Total_img", "Nimg_percentage", "parallax", "covis_score", "trans_error"],
 )
 
-# Si tienes rotaciones de hasta 180°, podrías forzar el rango:
-# fig.update_yaxes(range=[0, 180])  # Descomenta si quieres limitar a 180° máximo
 
 fig.update_layout(
     title="Distribution of Rotation Error by Submap",
@@ -84,7 +80,7 @@ fig = px.box(
     x="submap_id",
     y="trans_error",
     points="all",
-    hover_data=["image0", "image1", "mkpts0", "mkpts1", "Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error"],
+    hover_data=["image0", "image1", "mkpts", "inliers", "Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error"],
 )
 # Si quieres ampliar el rango (p.ej. hasta 5), haz:
 # fig.update_yaxes(range=[0, 5])
@@ -107,7 +103,7 @@ fig = px.histogram(
     x="rot_error",
     color="submap_id",
     marginal="box",
-    hover_data=["image0", "image1", "mkpts0", "mkpts1", "Total_img", "Nimg_percentage", "parallax", "covis_score", "trans_error"],
+    hover_data=["image0", "image1", "mkpts","inliers","Total_img", "Nimg_percentage", "parallax", "covis_score", "trans_error"],
     nbins=1800,         # Aumentar bins
     # range_x=[0, 180]  # Si quieres ver hasta 180°
 )
@@ -128,7 +124,7 @@ fig = px.histogram(
     x="trans_error",
     color="submap_id",
     marginal="box",
-    hover_data=["image0", "image1", "mkpts0", "mkpts1", "Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error"],
+    hover_data=["image0", "image1", "mkpts", "inliers","Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error"],
     nbins=1800,         # Ajusta según el rango y lo que desees
     # range_x=[0, 5]    # Si quieres llegar hasta 5
 )
@@ -149,7 +145,7 @@ fig = px.scatter(
     x="parallax",
     y="trans_error",
     color="submap_id",
-    hover_data=["image0", "image1", "mkpts0", "mkpts1", "Total_img", "Nimg_percentage", "covis_score", "rot_error"]
+    hover_data=["image0", "image1", "mkpts","inliers", "Total_img", "Nimg_percentage", "covis_score", "rot_error"]
 )
 
 fig.update_layout(
@@ -173,7 +169,7 @@ fig = px.scatter(
     x="parallax",
     y="rot_error",
     color="submap_id",
-    hover_data=["image0", "image1", "mkpts0", "mkpts1", "Total_img", "Nimg_percentage", "covis_score", "trans_error"]
+    hover_data=["image0", "image1", "mkpts","inliers", "Total_img", "Nimg_percentage", "covis_score", "trans_error"]
 )
 
 fig.update_layout(

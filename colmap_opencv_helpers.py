@@ -7,6 +7,8 @@ from match_image_pairs import match_image_pairs
 from my_logging import debug_log
 import gc
 from memory_profiler import profile
+import time
+from matching.viz import plot_matches
 
 def get_device_info(device):
     """Get device information similar to nvidia-smi."""
@@ -506,8 +508,10 @@ def get_relative_pose_from_colmap(image0, image1):
 def get_relative_pose_from_matcher(img0_path, img1_path, camera0, camera1,
                                     output_submap_dir, model_name,
                                     matcher, logger=None, resize=None, masking=False,
-                                    plot_kpts=False, min_matches_for_pose=8):
-    result_matcher = match_image_pairs(
+                                    plot_kpts=False, min_matches_for_pose=5):
+    
+    #Match images and get the result
+    result_matcher, img0, img1, masked_img0, masked_img1 = match_image_pairs(
         img0_path, img1_path,
         output_submap_dir, model_name,
         matcher,
@@ -541,21 +545,39 @@ def get_relative_pose_from_matcher(img0_path, img1_path, camera0, camera1,
 
     # Similarly for essential matrix estimation failure, add penalty instead of skipping
     if result_colmap is None:
-        logger.warning(f"Essential matrix estimation failed for {img0_path.stem} and {img1_path.stem}.")
+        logger.warning(f"Not enough inliers for {img0_path.stem} and {img1_path.stem}. Adding penalty error values.")
         del result_colmap, corrected_mkpts0, corrected_mkpts1, mkpts0, mkpts1, matcher
         gc.collect()
         return None, None, None, None, None, None
 
-
     # Extract R and t from the essential matrix
     R01_est = result_colmap['cam2_from_cam1'].inverse().rotation.matrix()
     t01_est = result_colmap['cam2_from_cam1'].inverse().translation
-    inlier_mask = result_colmap['inlier_mask']
-
+    
     # Load the inliers from COLMAP
-    result_matcher['inliers'] = inlier_mask
+    inlier_mask = result_colmap['inlier_mask']
+    result_matcher['inlier_kpts0'] = result_matcher['matched_kpts0'][inlier_mask]
+    result_matcher['inlier_kpts1'] = result_matcher['matched_kpts1'][inlier_mask]
+    result_matcher['num_inliers'] = len(result_matcher['inlier_kpts0'])
 
-    del result_colmap, corrected_mkpts0, corrected_mkpts1, mkpts0, mkpts1, matcher
+    if masking:
+        start_plotting = time.perf_counter()
+        plot_path = output_submap_dir / f'{img0_path.stem}_{img1_path.stem}_{model_name}.png'
+        plot_matches(masked_img0, masked_img1, result_matcher, show_all_kpts=plot_kpts, save_path=plot_path)
+        end_plotting = time.perf_counter()
+        debug_log(logger, 'match_image_pairs', f'Plotting matches took {end_plotting - start_plotting:.3f} seconds')
+        debug_log(logger, 'match_image_pairs', f'Saved plot to {plot_path}')
+        
+    else:
+        start_plotting = time.perf_counter()
+        plot_path = output_submap_dir / f'{img0_path.stem}_{img1_path.stem}_{model_name}.png'
+        plot_matches(img0, img1, result_matcher, show_all_kpts=plot_kpts, save_path=plot_path)
+        end_plotting = time.perf_counter()
+        debug_log(logger, 'match_image_pairs', f'Plotting matches took {end_plotting - start_plotting:.3f} seconds')
+        debug_log(logger, 'match_image_pairs', f'Saved plot to {plot_path}')
+            
+
+    del result_colmap, corrected_mkpts0, corrected_mkpts1, mkpts0, mkpts1, matcher, img0, img1, masked_img0, masked_img1
     gc.collect()
     return result_matcher, R01_est, t01_est, extractor_time, filter_time, match_time
 

@@ -169,34 +169,23 @@ def adapt_mkpts_to_colmap(mkpts):
     mkpts_colmap = mkpts + 0.5
     return mkpts_colmap
 
-def compute_relative_pose(cam0_from_world, cam1_from_world):
+def compute_relative_pose(T_w_c0, T_w_c1):
     """
     Compute relative pose (R, t) between two camera absolute poses.
 
     Args:
-        cam0_from_world (pycolmap.Rigid3d): Absolute pose of camera 0 (world -> cam0).
-        cam1_from_world (pycolmap.Rigid3d): Absolute pose of camera 1 (world -> cam1).
+        T_w_c0 (pycolmap.Rigid3d): Absolute pose of camera 0 (world -> cam0).
+        T_w_c1 (pycolmap.Rigid3d): Absolute pose of camera 1 (world -> cam1).
 
     Returns:
         R_01 (numpy.ndarray): 3x3 relative rotation matrix. (cam0 -> cam1)
         t_01 (numpy.ndarray): 3x1 relative translation vector. (cam0 -> cam1)
     """
     
-    cam1_from_cam0 = cam0_from_world.inverse() * cam1_from_world 
+    T_c0_c1 = T_w_c0.inverse() * T_w_c1 
 
-    return cam1_from_cam0.rotation.matrix(), cam1_from_cam0.translation
+    return T_c0_c1.rotation.matrix(), T_c0_c1.translation
 
-
-
-def load_R_t(image_name, reconstruction):
-    """ Load rotation matrix and translation vector for a given image from COLMAP reconstruction """
-    image = reconstruction.find_image_with_name(image_name)
-
-    # Convert COLMAP's quaternion + translation to a rotation matrix
-    R = image.cam_from_world.rotation.matrix()
-    t = image.cam_from_world.translation
-
-    return R, t
 
 
 def load_covisibility_graph(file_path):
@@ -506,11 +495,11 @@ def get_relative_pose_from_colmap(image0, image1):
     """Get relative pose between two images from a COLMAP reconstruction"""
 
     # Get the absolute poses of the images
-    absolute_pose0 = image0.cam_from_world
-    absolute_pose1 = image1.cam_from_world
+    T_w_c0 = image0.cam_from_world.inverse()
+    T_w_c1 = image1.cam_from_world.inverse()
 
     # Compute relative pose with pycolmap
-    R01_colmap, t01_colmap = compute_relative_pose(absolute_pose0, absolute_pose1)
+    R01_colmap, t01_colmap = compute_relative_pose(T_w_c0, T_w_c1)
 
     return R01_colmap, t01_colmap
 
@@ -528,15 +517,15 @@ def get_relative_pose_from_matcher(img0_path, img1_path, camera0, camera1,
         plot_kpts=plot_kpts
     )
 
-    # Extract sub-step times from the result_matcher
-    extractor_time = result_matcher["timings"].get("extractor_time", 0.0)
-    filter_time    = result_matcher["timings"].get("filter_time", 0.0)
-    match_time     = result_matcher["timings"].get("matcher_time", 0.0)
-
     # Instead of skipping, add a high penalty error for pairs with too few matches
     if result_matcher is None or len(result_matcher['matched_kpts0']) < min_matches_for_pose:
         logger.warning(f"Not enough matches found or result_matcher is None for {img0_path.stem} and {img1_path.stem}. Adding penalty error values.")
         return None, None, None, None, None, None
+
+    # Extract sub-step times from the result_matcher
+    extractor_time = result_matcher["timings"].get("extractor_time", 0.0)
+    filter_time    = result_matcher["timings"].get("filter_time", 0.0)
+    match_time     = result_matcher["timings"].get("matcher_time", 0.0)
     
     mkpts0 = result_matcher['matched_kpts0']
     mkpts1 = result_matcher['matched_kpts1']
@@ -559,8 +548,8 @@ def get_relative_pose_from_matcher(img0_path, img1_path, camera0, camera1,
 
 
     # Extract R and t from the essential matrix
-    R01_est = result_colmap['cam2_from_cam1'].rotation.matrix()
-    t01_est = result_colmap['cam2_from_cam1'].translation
+    R01_est = result_colmap['cam2_from_cam1'].inverse().rotation.matrix()
+    t01_est = result_colmap['cam2_from_cam1'].inverse().translation
     inlier_mask = result_colmap['inlier_mask']
 
     # Load the inliers from COLMAP
@@ -602,21 +591,4 @@ def save_result_matcher_npz(save_dir: Path,
         t_est=t_est
     )
 
-def load_result_matcher_npz(npz_path: Path) -> dict:
-    """
-    Load result_matcher and metadata from .npz file.
-    """
-    data = np.load(npz_path, allow_pickle=True)
-    return {
-        "matched_kpts0": data["matched_kpts0"],
-        "matched_kpts1": data["matched_kpts1"],
-        "all_kpts0": data["all_kpts0"],
-        "all_kpts1": data["all_kpts1"],
-        "scores": data.get("scores", None),
-        "inliers": data.get("inliers", None),
-        "image0": str(data["image0"]),
-        "image1": str(data["image1"]),
-        "R_est": data.get("R_est", None),
-        "t_est": data.get("t_est", None)
-    }
 

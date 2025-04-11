@@ -81,7 +81,7 @@ min_shared_points = 15 # for filtering image pairs
 min_track_len = 3 # for filtering image pairs
 max_reproj_error = 2.0 # for filtering image pairs
 ############################ Parallax #############################
-min_parallax = 5 # for robust estimation of relative pose (degrees)
+min_parallax = 1 # for robust estimation of relative pose (degrees)
 ############################# Min Pairs for submap #############################
 min_pairs_for_submap = 10 # for skipping submaps with too few pairs
 ############################# Min Matches for pose estimation #############################
@@ -89,6 +89,9 @@ min_matches_for_pose = 5 # for skipping pairs with too few matches
 ############################# Thresholds #############################
 thresholds_r = np.linspace(0.1, 5, 10)
 thresholds_t = np.linspace(1, 70, 10)
+############################# Thresholds #############################
+# pair_images_strategy = "greedy_sequential" # for filtering image pairs
+pair_images_strategy = "exhaustive" # for filtering image pairs
 
 
 
@@ -138,12 +141,20 @@ def main_loop():
             # Sort images to ensure they're in sequential order
             images.sort(key=lambda x: x.name)
 
-            # Create pairs of sequential images instead of all combinations
-            # pairs = filter_image_pairs(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
-            #                         max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)
+            if pair_images_strategy == "exhaustive":
+            
+                # All with all, passing the filters (covisibility_graph, min_parallax)
+                pairs = filter_image_pairs(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
+                                        max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)
 
-            pairs = filter_image_pairs_greedy_sequential(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
-                        max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)
+            elif pair_images_strategy == "greedy_sequential":
+                
+                # Take pair of images that first sastisfy the filters (covisibility_graph, min_parallax)
+                pairs = filter_image_pairs_greedy_sequential(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
+                            max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)
+            
+            else:
+                raise ValueError(f"Unknown pair_images_strategy: {pair_images_strategy}")
             
             # Compute total images in the submap with the filtered pairs
             total_images_submap = len(set(itertools.chain(*pairs)))

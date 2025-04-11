@@ -324,6 +324,27 @@ def main_loop():
                 submap_data, seq, submap, model_name, 
                 submap_output_dir, logger, reason="interrupted"
             )
+
+            # Al final, genera el reporte de secuencia completa
+            sequence_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}')
+            submaps_dir = sequence_output_dir / 'submaps'
+            
+            # Metadata para el reporte de secuencia
+            metadata = {
+                "device_info": device_info,
+                "resize": resize,
+                "masking": masking,
+                "matcher_params": matcher_kwargs,
+                "subsampling": subsample,
+                "thresholds_r": thresholds_r.tolist(),
+                "thresholds_t": thresholds_t.tolist(),
+                "extractor_config": matcher.extractor.conf,
+                "matcher_config": matcher.matcher.conf,
+            }
+            
+            # Crea el reporte final de secuencia
+            create_sequence_report(seq, model_name, submaps_dir, sequence_output_dir, logger, metadata)
+
             snapshot = tracemalloc.take_snapshot()
             top_stats = snapshot.statistics('lineno')
 

@@ -42,9 +42,9 @@ def match_image_pairs(img_path0, img_path1, output_dir, model_name, matcher, log
             # Check if any matches were found after filtering
             if len(result['matched_kpts1']) == 0:
                 logger.info(f'No matches found for pair: {img_path0.stem} and {img_path1.stem} using {model_name}')
-                del img0, img1, mask0, mask1, img0_np, img1_np, masked_img0, masked_img1
+                del mask0, mask1, img0_np, img1_np
                 gc.collect()
-                return  # Skip this pair
+                return None, img0, img1, masked_img0, masked_img1  # Skip this pair
             
             # Commented because this is plotted upstream. This is an old implementation when only plotting without any E matrix computation for easy, medium and hard cases.
             # if masking:

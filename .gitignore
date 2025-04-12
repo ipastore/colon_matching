@@ -185,3 +185,4 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 data/seq*/
+requirements_before_memory_profiler_20250319.txt

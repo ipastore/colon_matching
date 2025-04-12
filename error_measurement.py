@@ -87,11 +87,12 @@ min_pairs_for_submap = 10 # for skipping submaps with too few pairs
 ############################# Min Matches for pose estimation #############################
 min_matches_for_pose = 5 # for skipping pairs with too few matches
 ############################# Thresholds #############################
+#TODO: colon: add a relative threshold to t_colmap for the translation error?
 thresholds_r = np.linspace(0.1, 5, 10)
 thresholds_t = np.linspace(1, 70, 10)
 ############################# Thresholds #############################
-# pair_images_strategy = "greedy_sequential" # for filtering image pairs
-pair_images_strategy = "exhaustive" # for filtering image pairs
+pair_images_strategy = "greedy_sequential" # for filtering image pairs
+# pair_images_strategy = "exhaustive" # for filtering image pairs
 
 
 
@@ -213,17 +214,20 @@ def main_loop():
                 # rotation error
                 rot_err = rotation_error_deg(R01_colmap, R01_est)
                 # translation error relative to the diameter of the submap
-                trans_err = translation_error_direction_deg(t01_colmap, t01_est)
+                trans_err_deg = translation_error_direction_deg(t01_colmap, t01_est)
+                trans_err_rel = translation_error_relative_to_colmap(t01_colmap, t01_est)
                 pair_end_time = time.perf_counter()
-
-                debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} trans_error: {trans_err:.3f} degrees" )
+                
+                debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} trans_err_rel: {trans_err_rel:.3f} ")
+                debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} trans_error_deg: {trans_err_deg:.3f} degrees" )
                 debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} rot_error: {rot_err:.3f} degrees" )
                 debug_log(logger, "error_measurement",f"parallax: {parallax:.3f} degrees" )
                 debug_log(logger, "error_measurement",f"inliers: {result_matcher['num_inliers']}")
                 debug_log(logger, "error_measurement",f"matches: {len(result_matcher['matched_kpts0'])}")
 
+                #TODO colon: make another submap_errs_rel or whatever if I want to use both metrics.
                 submap_rot_errs.append(rot_err)
-                submap_trans_errs.append(trans_err)
+                submap_trans_errs.append(trans_err_deg)
 
                 # Build a dictionary for this pair
                 pair_info = {
@@ -238,7 +242,9 @@ def main_loop():
                     "matcher_time": match_time,
                     "total_pair_time": pair_end_time - pair_start_time,
                     "rot_error":  rot_err,
-                    "trans_error":    trans_err,
+                    "trans_error_deg":    trans_err_deg,
+                    "trans_error_rel": trans_err_rel,
+                    "t_colmap_norm": np.linalg.norm(t01_colmap),
                     "covis_score": covis_score,
                     "parallax": parallax
                 }
@@ -256,7 +262,8 @@ def main_loop():
                     img0_path.name,
                     img1_path.name,
                     R01_est,
-                    t01_est
+                    t01_est, 
+                    parallax,
                 )
                                 
                 del result_matcher, R01_est, t01_est, R01_colmap, t01_colmap, image0, image1, camera0, camera1, pair_info

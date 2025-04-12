@@ -3,7 +3,7 @@ from pathlib import Path
 from mpl_toolkits.mplot3d import Axes3D
 import pycolmap
 import cv2
-from colmap_opencv_helpers import compute_relative_pose, translation_error_direction_deg, rotation_error_deg
+from colmap_opencv_helpers import compute_relative_pose, translation_error_direction_deg, rotation_error_deg, translation_error_relative_to_colmap
 import sys
 import matplotlib
 
@@ -28,7 +28,8 @@ def load_result_matcher_npz(npz_path: Path) -> dict:
         "image0": str(data["image0"]),
         "image1": str(data["image1"]),
         "R_est": data.get("R_est", None),
-        "t_est": data.get("t_est", None)
+        "t_est": data.get("t_est", None),
+        "parallax": data.get("parallax", None),
     }
 
 def rigid3d_to_matrix4x4(rigid: pycolmap.Rigid3d) -> np.ndarray:
@@ -162,6 +163,7 @@ def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=Fa
     t01_est = match_data["t_est"]
     image0_name = match_data["image0"]
     image1_name = match_data["image1"]
+    parallax = match_data["parallax"]
     
 
     # Load COLMAP reconstruction
@@ -247,7 +249,7 @@ def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=Fa
     ax.quiver(
         cam0_pos[0], cam0_pos[1], cam0_pos[2], 
         cam1_colmap_pos[0] - cam0_pos[0], cam1_colmap_pos[1] - cam0_pos[1], cam1_colmap_pos[2] - cam0_pos[2],
-        color='black', arrow_length_ratio=0.1, linewidth=2, label='Vector Cam0→Cam1 (COLMAP)'
+        color='gray', arrow_length_ratio=0.1, linewidth=2, label='Vector Cam0→Cam1 (COLMAP)'
     )
     
     # If we have estimated pose, draw a plane between the two vectors to visualize the angle
@@ -359,9 +361,11 @@ def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=Fa
     if R01_est is not None and t01_est is not None:
         rot_error_deg = rotation_error_deg(R01_colmap, R01_est)
         trans_error_deg = translation_error_direction_deg(t01_colmap, t01_est)
+        trans_error_rel = translation_error_relative_to_colmap(t01_colmap, t01_est)
     else:
         rot_error_deg = None
         trans_error_deg = None
+        trans_error_rel = None
     
     # Calculate match statistics
     num_matched = len(matched_kpts0)
@@ -383,9 +387,12 @@ def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=Fa
     if rot_error_deg is not None and trans_error_deg is not None:
         metrics_text = (
             f"Rotation error: {rot_error_deg:.2f}°\n"
+            f"Translation error rel: {trans_error_rel:.2f}\n"
+            f"Norm of t_colmap: {np.linalg.norm(t01_colmap):.2f}\n"
             f"Translation error: {trans_error_deg:.2f}°\n"
             f"Matches: {num_matched}\n"
-            f"Inliers : {num_inliers:.2f}"
+            f"Inliers : {num_inliers:.2f}\n"
+            f"Parallax: {parallax:.2f}\n"
         )
         # Position the text in the top-left corner with a fixed position
         # Use a figure-relative position instead of axis-relative
@@ -419,11 +426,6 @@ def visualize_3d_reconstruction(npz_path, sparse_model_dir, show_triangulated=Fa
     plt.tight_layout()
     plt.show()
     
-    # Print camera pose errors if available
-    if R01_est is not None and t01_est is not None:
-        print(f"Rotation error: {rot_error_deg:.2f} degrees")
-        print(f"Translation direction error: {trans_error_deg:.2f} degrees")
-
 def main():
     import argparse
     
@@ -439,7 +441,7 @@ def main():
     # Default values for when running the script directly
     if args.npz_path is None or args.colmap_path is None:
         # Default paths for testing
-        npz_path = "./output/error_measurement/seq_001/superpoint-lg/20250410_202229/9/npz/out9565_out9707_superpoint-lg.npz"
+        npz_path = "./output/error_measurement/seq_001/superpoint-lg/20250412_212053/9/npz/out10228_out10230_superpoint-lg.npz"
         colmap_path = "./data/seq_001/sparse/9"
         show_triangulated = False
         show_individual_camera_points = False

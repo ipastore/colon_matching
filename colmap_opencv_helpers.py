@@ -70,22 +70,21 @@ def compute_AA(rot_errors_deg, trans_errors_m, thresholds_r, thresholds_t):
     return np.mean(accuracies)
 
 # #TODO colon_matching: option1 OLD
-# def translation_error_realative_to_t_colmap(t_colmap: np.ndarray, t_est: np.ndarray) -> float:
-#     """
-#     Compute translation normalized relative error between two translation vectors.
+def translation_error_relative_to_colmap(t_colmap: np.ndarray, t_est: np.ndarray) -> float:
+    """
+    Compute translation normalized relative error between two translation vectors.
 
-#     """
-#     assert t_colmap.shape == (3,), "t_colmap must be shape (3,)"
-#     assert t_est.shape == (3,),    "t_est must be shape (3,)"
+    """
+    assert t_colmap.shape == (3,), "t_colmap must be shape (3,)"
+    assert t_est.shape == (3,),    "t_est must be shape (3,)"
 
-#     # Scale the estimated translation to match the scale of the COLMAP translation
-#     scale_factor = np.linalg.norm(t_colmap) / np.linalg.norm(t_est)
-#     t_est_scaled = t_est * scale_factor
+    # Scale the estimated translation to match the scale of the COLMAP translation
+    scale_factor = np.linalg.norm(t_colmap) / np.linalg.norm(t_est)
+    t_est_scaled = t_est * scale_factor
 
-#     # Compute the normalized error
-#     err = np.linalg.norm(t_colmap - t_est_scaled) / np.linalg.norm(t_colmap)
-
-#     return err
+    # Compute the normalized error
+    err = np.linalg.norm(t_colmap - t_est_scaled)
+    return err
 
 # #TODO colon_matching: option2 NOT USED
 # def translation_error_unit(t_colmap: np.ndarray, t_est: np.ndarray) -> float:
@@ -590,7 +589,9 @@ def save_result_matcher_npz(save_dir: Path,
                             image0_name: str,
                             image1_name: str,
                             R_est: np.ndarray = None,
-                            t_est: np.ndarray = None):
+                            t_est: np.ndarray = None,
+                            parallax: float = None,
+                            inliers: int = None):
     """
     Save result_matcher and metadata as .npz in subfolder 'npz'.
     """
@@ -611,7 +612,8 @@ def save_result_matcher_npz(save_dir: Path,
         image0=image0_name,
         image1=image1_name,
         R_est=R_est,
-        t_est=t_est
+        t_est=t_est,
+        parallax=parallax
     )
 
 

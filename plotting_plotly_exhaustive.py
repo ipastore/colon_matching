@@ -5,14 +5,14 @@ from pathlib import Path
 import numpy as np
 
 # En tu caso, ajusta la ruta según corresponda
-timestamp_name = '20250410_202229'
+timestamp_name = '20250412_202333'
 output_dir = Path(f'./output/plot_images/plotly/{timestamp_name}')
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # ------------------------------------------------------------------
 # 1) Carga del JSON
 # ------------------------------------------------------------------
-json_path = './output/error_measurement/seq_001/superpoint-lg/20250410_202229/sequence_seq_001_20250410_202532.json'
+json_path = './output/error_measurement/seq_001/superpoint-lg/20250412_202333/sequence_seq_001_20250412_202516.json'
 with open(json_path, 'r') as f:
     data = json.load(f)
 
@@ -38,7 +38,9 @@ for submap_id, submap_data in submaps_dict.items():
             'image0': pair["image0"],
             'image1': pair["image1"],
             'rot_error': pair["rot_error"],
-            'trans_error': pair["trans_error"],
+            'trans_error_deg': pair["trans_error_deg"],
+            'trans_error_rel': pair["trans_error_rel"],
+            't_colmap_norm': pair ["t_colmap_norm"],
             'mkpts': mkpts,
             'inliers': pair["inliers"],
             'Total_img': total_img,
@@ -59,7 +61,7 @@ fig = px.box(
     x="submap_id",
     y="rot_error",
     points="all",  # "all" para mostrar todos los puntos
-    hover_data=["image0", "image1", "mkpts","inliers", "Total_img", "Nimg_percentage", "parallax", "covis_score", "trans_error"],
+    hover_data=["image0", "image1", "mkpts","inliers", "Total_img", "Nimg_percentage", "parallax", "covis_score", "trans_error_deg", "trans_error_rel"],
 )
 
 
@@ -78,9 +80,9 @@ print(f"Saved rotation boxplot to {rotation_file}")
 fig = px.box(
     df,
     x="submap_id",
-    y="trans_error",
+    y="trans_error_deg",
     points="all",
-    hover_data=["image0", "image1", "mkpts", "inliers", "Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error"],
+    hover_data=["image0", "image1", "mkpts", "inliers", "Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error", "trans_error_rel", "t_colmap_norm"],
 )
 # Si quieres ampliar el rango (p.ej. hasta 5), haz:
 # fig.update_yaxes(range=[0, 5])
@@ -90,7 +92,7 @@ fig.update_layout(
     yaxis_title="Trans. Error (deg)"
 )
 
-translation_file = output_dir / "trans_error_boxplot.html"
+translation_file = output_dir / "trans_error_deg_boxplot.html"
 fig.write_html(translation_file)
 print(f"Saved translation boxplot to {translation_file}")
 
@@ -103,7 +105,7 @@ fig = px.histogram(
     x="rot_error",
     color="submap_id",
     marginal="box",
-    hover_data=["image0", "image1", "mkpts","inliers","Total_img", "Nimg_percentage", "parallax", "covis_score", "trans_error"],
+    hover_data=["image0", "image1", "mkpts","inliers","Total_img", "Nimg_percentage", "parallax", "covis_score", "trans_error_deg", "trans_error_rel", "t_colmap_norm"],
     nbins=1800,         # Aumentar bins
     # range_x=[0, 180]  # Si quieres ver hasta 180°
 )
@@ -121,10 +123,10 @@ print(f"Saved rotation histogram to {rotation_hist_file}")
 # ------------------------------------------------------------------
 fig = px.histogram(
     df,
-    x="trans_error",
+    x="trans_error_deg",
     color="submap_id",
     marginal="box",
-    hover_data=["image0", "image1", "mkpts", "inliers","Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error"],
+    hover_data=["image0", "image1", "mkpts", "inliers","Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error", "trans_error_rel", "t_colmap_norm"],
     nbins=1800,         # Ajusta según el rango y lo que desees
     # range_x=[0, 5]    # Si quieres llegar hasta 5
 )
@@ -133,7 +135,7 @@ fig.update_layout(
     xaxis_title="Trans. Error"
 )
 
-translation_hist_file = output_dir / "trans_error_histogram.html"
+translation_hist_file = output_dir / "trans_error_deg_histogram.html"
 fig.write_html(translation_hist_file)
 print(f"Saved translation histogram to {translation_hist_file}")
 
@@ -143,9 +145,9 @@ print(f"Saved translation histogram to {translation_hist_file}")
 fig = px.scatter(
     df,
     x="parallax",
-    y="trans_error",
+    y="trans_error_deg",
     color="submap_id",
-    hover_data=["image0", "image1", "mkpts","inliers", "Total_img", "Nimg_percentage", "covis_score", "rot_error"]
+    hover_data=["image0", "image1", "mkpts","inliers", "Total_img", "Nimg_percentage", "covis_score", "rot_error", "trans_error_rel", "t_colmap_norm"]
 )
 
 fig.update_layout(
@@ -169,7 +171,7 @@ fig = px.scatter(
     x="parallax",
     y="rot_error",
     color="submap_id",
-    hover_data=["image0", "image1", "mkpts","inliers", "Total_img", "Nimg_percentage", "covis_score", "trans_error"]
+    hover_data=["image0", "image1", "mkpts","inliers", "Total_img", "Nimg_percentage", "covis_score", "trans_error_deg", "trans_error_rel", "t_colmap_norm"]
 )
 
 fig.update_layout(
@@ -184,3 +186,152 @@ fig.update_xaxes(dtick=1)  # This sets tick intervals to 1
 parallax_rot_file = output_dir / "parallax_rot_correlation.html"
 fig.write_html(parallax_rot_file)
 print(f"Saved parallax-rotation correlation plot to {parallax_rot_file}")
+
+# ------------------------------------------------------------------
+# 9) Boxplot of relative translation error
+# ------------------------------------------------------------------
+fig = px.box(
+    df,
+    x="submap_id",
+    y="trans_error_rel",
+    points="all",
+    hover_data=["image0", "image1", "mkpts", "inliers", "Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error", "trans_error_deg", "t_colmap_norm"],
+)
+
+fig.update_layout(
+    title="Distribution of Relative Translation Error by Submap",
+    yaxis_title="Relative Translation Error"
+)
+
+trans_rel_file = output_dir / "trans_error_rel_boxplot.html"
+fig.write_html(trans_rel_file)
+print(f"Saved relative translation error boxplot to {trans_rel_file}")
+
+# ------------------------------------------------------------------
+# 10) Histogram of relative translation error
+# ------------------------------------------------------------------
+fig = px.histogram(
+    df,
+    x="trans_error_rel",
+    color="submap_id",
+    marginal="box",
+    hover_data=["image0", "image1", "mkpts", "inliers", "Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error", "trans_error_deg", "t_colmap_norm"],
+    nbins=1800,
+)
+
+fig.update_layout(
+    title="Distribution of Relative Translation Error by Submap",
+    xaxis_title="Relative Translation Error"
+)
+
+trans_rel_hist_file = output_dir / "trans_error_rel_histogram.html"
+fig.write_html(trans_rel_hist_file)
+print(f"Saved relative translation error histogram to {trans_rel_hist_file}")
+
+# ------------------------------------------------------------------
+# 11) Correlation plot: Parallax vs. Relative Translation Error
+# ------------------------------------------------------------------
+fig = px.scatter(
+    df,
+    x="parallax",
+    y="trans_error_rel",
+    color="submap_id",
+    hover_data=["image0", "image1", "mkpts", "inliers", "Total_img", "Nimg_percentage", "covis_score", "rot_error", "trans_error_deg", "t_colmap_norm"]
+)
+
+fig.update_layout(
+    title="Correlation between Parallax and Relative Translation Error",
+    xaxis_title="Parallax",
+    yaxis_title="Relative Translation Error"
+)
+
+# Add ticks at intervals of 1 instead of 5
+fig.update_xaxes(dtick=1)  # This sets tick intervals to 1
+
+parallax_trans_rel_file = output_dir / "parallax_trans_rel_correlation.html"
+fig.write_html(parallax_trans_rel_file)
+print(f"Saved parallax-relative translation correlation plot to {parallax_trans_rel_file}")
+
+# ------------------------------------------------------------------
+# 12) Correlation plot: Inliers vs. Translation Error (degrees)
+# ------------------------------------------------------------------
+fig = px.scatter(
+    df,
+    x="inliers",
+    y="trans_error_deg",
+    color="submap_id",
+    hover_data=["image0", "image1", "mkpts", "Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error", "trans_error_rel", "t_colmap_norm"]
+)
+
+fig.update_layout(
+    title="Correlation between Number of Inliers and Translation Error",
+    xaxis_title="Number of Inliers",
+    yaxis_title="Translation Error (deg)"
+)
+
+inliers_trans_file = output_dir / "inliers_trans_deg_correlation.html"
+fig.write_html(inliers_trans_file)
+print(f"Saved inliers-translation error correlation plot to {inliers_trans_file}")
+
+# ------------------------------------------------------------------
+# 13) Correlation plot: Inliers vs. Relative Translation Error
+# ------------------------------------------------------------------
+fig = px.scatter(
+    df,
+    x="inliers",
+    y="trans_error_rel",
+    color="submap_id",
+    hover_data=["image0", "image1", "mkpts", "Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error", "trans_error_deg", "t_colmap_norm"]
+)
+
+fig.update_layout(
+    title="Correlation between Number of Inliers and Relative Translation Error",
+    xaxis_title="Number of Inliers",
+    yaxis_title="Relative Translation Error"
+)
+
+inliers_trans_rel_file = output_dir / "inliers_trans_rel_correlation.html"
+fig.write_html(inliers_trans_rel_file)
+print(f"Saved inliers-relative translation error correlation plot to {inliers_trans_rel_file}")
+
+# ------------------------------------------------------------------
+# 14) Correlation plot: Inliers vs. Rotation Error
+# ------------------------------------------------------------------
+fig = px.scatter(
+    df,
+    x="inliers",
+    y="rot_error",
+    color="submap_id",
+    hover_data=["image0", "image1", "mkpts", "Total_img", "Nimg_percentage", "parallax", "covis_score", "trans_error_deg", "trans_error_rel", "t_colmap_norm"]
+)
+
+fig.update_layout(
+    title="Correlation between Number of Inliers and Rotation Error",
+    xaxis_title="Number of Inliers",
+    yaxis_title="Rotation Error (deg)"
+)
+
+inliers_rot_file = output_dir / "inliers_rot_error_correlation.html"
+fig.write_html(inliers_rot_file)
+print(f"Saved inliers-rotation error correlation plot to {inliers_rot_file}")
+
+# ------------------------------------------------------------------
+# 15) Correlation plot: Relative Translation Error vs. Translation Error (degrees)
+# ------------------------------------------------------------------
+fig = px.scatter(
+    df,
+    x="trans_error_rel",
+    y="trans_error_deg",
+    color="submap_id",
+    hover_data=["image0", "image1", "mkpts", "inliers", "Total_img", "Nimg_percentage", "parallax", "covis_score", "rot_error", "t_colmap_norm"]
+)
+
+fig.update_layout(
+    title="Correlation between Relative Translation Error and Translation Error (degrees)",
+    xaxis_title="Relative Translation Error",
+    yaxis_title="Translation Error (deg)"
+)
+
+trans_rel_deg_file = output_dir / "trans_error_rel_deg_correlation.html"
+fig.write_html(trans_rel_deg_file)
+print(f"Saved relative vs. angular translation error correlation plot to {trans_rel_deg_file}")

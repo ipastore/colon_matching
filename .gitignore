@@ -186,3 +186,7 @@ cython_debug/
 .pypirc
 data/seq*/
 requirements_before_memory_profiler_20250319.txt
+
+data/graham-hall/
+data/graham-hall_toy/
+colon_matching.code-workspace

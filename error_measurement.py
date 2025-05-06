@@ -44,20 +44,20 @@ model_name = 'superpoint-lg'
 ############################# CHOOSE IMAGE DIRECTORY #############################
 image_dir = Path(f'data')
 ############################# RESIZE #############################
-# resize = 512
-resize = None
+resize = 512
+# resize = None
 ############################# MASK #############################
 # specular_mask = False
 masking = True
 ############################# Key Points #############################
 plot_kpts = True
-############################# Sequence and Submap #############################
-seq = "seq_001"
+
 ############################# Matcher Hyperparameters #############################
 # Parameters for SuperPoint extractor and LightGlue matcher
 matcher_kwargs = {
-    'detection_threshold': 0.005,  # SuperPoint keypoint detection threshold
-    'max_num_keypoints': 1024,     # Maximum number of keypoints to detect
+    # 'detection_threshold': 0.005,  # SuperPoint keypoint detection threshold
+    'detection_threshold': 0.01,  # SuperPoint keypoint detection threshold
+    'max_num_keypoints': 300,     # Maximum number of keypoints to detect
     'filter_threshold': 0.1 ,       # LightGlue matching threshold
     "depth_confidence": -1,        # early stopping, disable with -1 / 0.95
     "width_confidence": -1          # point pruning, disable with -1 / 0.99
@@ -70,7 +70,8 @@ ransac_kwargs = {
     'ransac_iters': 0
 }
 ############################# Seq #############################
-seq = "seq_001"
+# seq = "seq_001"
+seq = "graham-hall_toy"
 seq_dir = Path(f'data/{seq}')
 ############################# Subsample #############################
 subsample = 1 # for subsampling the img_train list
@@ -91,8 +92,8 @@ min_matches_for_pose = 5 # for skipping pairs with too few matches
 thresholds_r = np.linspace(0.1, 5, 10)
 thresholds_t = np.linspace(1, 70, 10)
 ############################# Thresholds #############################
-pair_images_strategy = "greedy_sequential" # for filtering image pairs
-# pair_images_strategy = "exhaustive" # for filtering image pairs
+# pair_images_strategy = "greedy_sequential" # for filtering image pairs
+pair_images_strategy = "exhaustive" # for filtering image pairs
 
 
 
@@ -118,8 +119,8 @@ def main_loop():
 
     try:
         # Iterate over all the submaps in the sequence
-        for submap in [submaps[9]]:               ######################### FOR DEBUGGING
-        # for submap in submaps:
+        # for submap in [submaps[9]]:               ######################### USING JUST ONE SUBMAP ########################
+        for submap in submaps:
             logger.info(f"Starting submap: {submap}")
             # Define the paths for the submap model and the source of images of the mode
             sparse_model_dir = seq_dir / 'sparse' / submap
@@ -128,7 +129,13 @@ def main_loop():
             reconstruction = pycolmap.Reconstruction(sparse_model_dir)
 
             #Get image pairs for the submap
-            images = list(Path(f'data/{seq}/sub_maps_images/{submap}').glob('*.png'))
+            images = list(Path(f'data/{seq}/sub_maps_images/{submap}').glob('*.png')) + \
+                    list(Path(f'data/{seq}/img_train/exterior').glob('*.jpg')) + \
+                    list(Path(f'data/{seq}/img_train/exterior').glob('*.JPG')) + \
+                    list(Path(f'data/{seq}/img_train/interior').glob('*.jpg')) + \
+                    list(Path(f'data/{seq}/img_train/interior').glob('*.JPG')) 
+                                    
+                                    
             # Subsample the images list to avoid memory issues
             images = images[::subsample]
             debug_log(logger, "error_measurement", f"{submap} subsampled by {subsample} has {len(images)} images")
@@ -190,9 +197,27 @@ def main_loop():
                 progress_bar(logger, len(pair_metrics), len(pairs), img0_path, img1_path)
 
                 pair_start_time = time.perf_counter()
+                # Get images names
+                uproot_folder0 = img0_path.parent.name
+                uproot_folder1 = img1_path.parent.name
+
+                # Hardcoded adaptation to other datasets containing another folder in the image_name
+                if uproot_folder0 == "exterior" or "interior":
+                    # Add the parent folder of the image to the image name
+                    img0_name = f"{uproot_folder0}/{img0_path.name}"
+                else:
+                    img0_path.name
+                
+                if uproot_folder1 == "exterior" or "interior":
+                    # Add the parent folder of the image to the image name
+                    img1_name = f"{uproot_folder1}/{img1_path.name}"
+                else:
+                    img1_name = img1_path.name
+
+
                 # Get image objects
-                image0 = reconstruction.find_image_with_name(img0_path.name)
-                image1 = reconstruction.find_image_with_name(img1_path.name)
+                image0 = reconstruction.find_image_with_name(img0_name)
+                image1 = reconstruction.find_image_with_name(img1_name)
 
                 # Get camera objects
                 camera0 = reconstruction.camera(image0.camera_id)
@@ -200,9 +225,8 @@ def main_loop():
 
                 # Get relative pose from colmap
                 R01_colmap, t01_colmap = get_relative_pose_from_colmap(image0, image1)
-
+                
                 ##### START get_relative_pose_from_matcher #######
-
                 # Get relative pose froom matcher
                 result_matcher, R01_est, t01_est, extractor_time, filter_time, match_time = get_relative_pose_from_matcher(
                     img0_path, img1_path, camera0, camera1, output_submap_dir, model_name, matcher, logger=logger, resize=resize, masking=masking, plot_kpts=plot_kpts, min_matches_for_pose=min_matches_for_pose

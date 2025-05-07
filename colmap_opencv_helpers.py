@@ -618,50 +618,6 @@ def save_result_matcher_npz(save_dir: Path,
         parallax=parallax
     )
 
-# Custom JSON encoder to handle numpy arrays and tensors
-class NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        if isinstance(obj, torch.Tensor):
-            return obj.detach().cpu().numpy().tolist()
-        return json.JSONEncoder.default(self, obj)
-
-def export_matcher_results(results_dict, output_path):
-    """
-    Export matcher results to a JSON file.
-    
-    Args:
-        results_dict: Dictionary containing matcher results
-        output_path: Path to save the JSON file
-    """
-    # Create a filtered dictionary with only necessary data
-    export_data = {}
-    
-    for pair_name, result in results_dict.items():
-        # Format pair name correctly (IMG_0001_IMG_0002)
-        if isinstance(pair_name, tuple):
-            img0_name, img1_name = pair_name
-            # Remove file extensions if present
-            img0_name = img0_name.split('/')[-1].split('.')[0]
-            img1_name = img1_name.split('/')[-1].split('.')[0]
-            pair_key = f"{img0_name}_{img1_name}"
-        else:
-            pair_key = pair_name
-            
-        # Extract only R and t from matcher results
-        export_data[pair_key] = {
-            'R': result['R_est'] if 'R_est' in result else result['R'],
-            't': result['t_est'] if 't_est' in result else result['t'],
-            'inliers': result.get('inliers', None),
-            'matches': result.get('num_matches', 0)
-        }
-    
-    # Save to JSON
-    with open(output_path, 'w') as f:
-        json.dump(export_data, f, cls=NumpyEncoder, indent=2)
-    
-    print(f"Exported {len(export_data)} pairs to {output_path}")
 
 def get_img_name(img_path):
     """

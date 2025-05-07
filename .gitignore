@@ -194,3 +194,4 @@ requirements_ubuntu_previous_open3d.txt
 data/graham-hall/
 data/graham-hall_toy/
 colon_matching.code-workspace
+data/

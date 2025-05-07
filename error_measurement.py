@@ -198,21 +198,11 @@ def main_loop():
 
                 pair_start_time = time.perf_counter()
                 # Get images names
-                uproot_folder0 = img0_path.parent.name
-                uproot_folder1 = img1_path.parent.name
 
-                # Hardcoded adaptation to other datasets containing another folder in the image_name
-                if uproot_folder0 == "exterior" or "interior":
-                    # Add the parent folder of the image to the image name
-                    img0_name = f"{uproot_folder0}/{img0_path.name}"
-                else:
-                    img0_path.name
-                
-                if uproot_folder1 == "exterior" or "interior":
-                    # Add the parent folder of the image to the image name
-                    img1_name = f"{uproot_folder1}/{img1_path.name}"
-                else:
-                    img1_name = img1_path.name
+
+                # Get images names
+                img0_name = get_img_name(img0_path)
+                img1_name = get_img_name(img1_path)
 
 
                 # Get image objects
@@ -283,8 +273,8 @@ def main_loop():
                     output_submap_dir,
                     model_name,
                     result_matcher,
-                    img0_path.name,
-                    img1_path.name,
+                    img0_name,
+                    img1_name,
                     R01_est,
                     t01_est, 
                     parallax,

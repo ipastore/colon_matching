@@ -290,13 +290,13 @@ def filter_image_pairs_greedy_sequential(
     # Greedy forward matching of pairs
     while i < len(images):
         img0 = images[i]
-        img0_name = img0.name if hasattr(img0, 'name') else img0
+        img0_name = get_img_name(img0)
         match_found = False
 
         for j in range(i + 1, len(images)):
             img1 = images[j]
-            img1_name = img1.name if hasattr(img1, 'name') else img1
-
+            img1_name = get_img_name(img1)
+            
             # Filter1: Check if img0 and img1 are neighbors in the covisibility graph
             if img0_name not in covisibility_graph :
                 debug_log(logger, 'filter_image_pairs', f"{img0_name} not found in covisibility graph.")
@@ -414,31 +414,12 @@ def filter_image_pairs(
     # Exhaustive matching: check all possible pairs
     for i in range(len(images)):
         img0 = images[i]
-
-        uproot_folder0 = Path(img0).parent.name if isinstance(img0, Path) else Path(img0.name).parent.name
-
-        # Hardcoded adaptation to other datasets containing another folder in the image_name
-        if uproot_folder0 == "exterior" or "interior":
-            # Add the parent folder of the image to the image name
-            img0_name = f"{uproot_folder0}/{img0.name}" if hasattr(img0, 'name') else f"{uproot_folder0}/{img0}"
-
-        # Default cases with .png (seq_001, seq_002, easy, medium and hard cases)   
-        else: 
-            img0_name = img0.name if hasattr(img0, 'name') else img0
+        img0_name = get_img_name(img0)
 
         # Get all possible pairs with images after this one
         for j in range(i + 1, len(images)):
             img1 = images[j]
-            uproot_folder1 = Path(img1).parent.name if isinstance(img1, Path) else Path(img1.name).parent.name
-
-            # Hardcoded adaptation to other datasets containing another folder in the image_name
-            if uproot_folder1 == "exterior" or "interior":
-                # Add the parent folder of the image to the image name
-                img1_name = f"{uproot_folder1}/{img1.name}" if hasattr(img1, 'name') else f"{uproot_folder1}/{img1}"
-
-            # Default cases with .png (seq_001, seq_002, easy, medium and hard cases)   
-            else: 
-                img1_name = img1.name if hasattr(img1, 'name') else img1
+            img1_name = get_img_name(img1)
             
             # Filter 1: Check if img0 and img1 are neighbors in the covisibility graph
             if img0_name not in covisibility_graph:

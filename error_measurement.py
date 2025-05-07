@@ -44,8 +44,8 @@ model_name = 'superpoint-lg'
 ############################# CHOOSE IMAGE DIRECTORY #############################
 image_dir = Path(f'data')
 ############################# RESIZE #############################
-resize = 512
-# resize = None
+# resize = 512
+resize = None
 ############################# MASK #############################
 # specular_mask = False
 masking = True
@@ -55,9 +55,9 @@ plot_kpts = True
 ############################# Matcher Hyperparameters #############################
 # Parameters for SuperPoint extractor and LightGlue matcher
 matcher_kwargs = {
-    # 'detection_threshold': 0.005,  # SuperPoint keypoint detection threshold
-    'detection_threshold': 0.01,  # SuperPoint keypoint detection threshold
-    'max_num_keypoints': 300,     # Maximum number of keypoints to detect
+    'detection_threshold': 0.005,  # SuperPoint keypoint detection threshold
+    # 'detection_threshold': 0.01,  # SuperPoint keypoint detection threshold
+    'max_num_keypoints': 1024,     # Maximum number of keypoints to detect
     'filter_threshold': 0.1 ,       # LightGlue matching threshold
     "depth_confidence": -1,        # early stopping, disable with -1 / 0.95
     "width_confidence": -1          # point pruning, disable with -1 / 0.99

@@ -186,6 +186,10 @@ cython_debug/
 .pypirc
 data/seq*/
 requirements_before_memory_profiler_20250319.txt
+requirements_ubuntu_previous_memory_profiler.txt
+requirements_ubuntu_previous_plotly_240235.txt
+requirements_ubuntu_previous_pull_error_measurement_20250319.txt
+requirements_ubuntu_previous_open3d.txt
 
 data/graham-hall/
 data/graham-hall_toy/

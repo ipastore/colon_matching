@@ -111,13 +111,45 @@ def create_mask_normalized(frame_gray_norm):
     # Convert mask values from {0,1} to {0,255} as uint8
     return thresh.astype(np.uint8)
 
-def is_in_mask(points: torch.Tensor, mask_points: torch.Tensor, logger=None) -> torch.Tensor:
+#TODO colopn: Old function, replaced by is_in_mask() but memory efficient with batching  
+# def is_in_mask(points: torch.Tensor, mask_points: torch.Tensor, logger=None) -> torch.Tensor:
+#     """
+#     Given points: (K,2) and mask_points: (N,2) (both in (col, row) order),
+#     returns a boolean tensor of shape (K,) where each element is True if the corresponding
+#     point is found exactly in mask_points.
+#     """
+
+#     # Remove extra dimensions if present (e.g. if shape is (1, K, 2))
+#     if points.ndim > 2:
+#         points = points.squeeze(0)
+#     if mask_points.ndim > 2:
+#         mask_points = mask_points.squeeze(0)
+
+#     # Check if there are no points in input
+#     if points.size(0) == 0:
+#         return torch.empty((0,), dtype=torch.bool, device=points.device)
+#     # Compare each point (K,2) with each mask point (N,2).
+#     equal = torch.all(points[:, None, :] == mask_points[None, :, :], dim=2)  # shape: (K,N)
+#     return torch.any(equal, dim=1)
+
+def is_in_mask(points: torch.Tensor, mask_points: torch.Tensor, logger=None, batch_size=1000, mask_batch_size=10000) -> torch.Tensor:
     """
     Given points: (K,2) and mask_points: (N,2) (both in (col, row) order),
     returns a boolean tensor of shape (K,) where each element is True if the corresponding
     point is found exactly in mask_points.
+    
+    This implementation processes both points and mask points in batches to reduce memory usage.
+    
+    Args:
+        points: Tensor of shape (K,2) containing points to check
+        mask_points: Tensor of shape (N,2) containing mask points
+        logger: Optional logger for debugging
+        batch_size: Number of points to process at once
+        mask_batch_size: Number of mask points to process at once
+        
+    Returns:
+        Boolean tensor of shape (K,) where True indicates point is in mask
     """
-
     # Remove extra dimensions if present (e.g. if shape is (1, K, 2))
     if points.ndim > 2:
         points = points.squeeze(0)
@@ -127,9 +159,53 @@ def is_in_mask(points: torch.Tensor, mask_points: torch.Tensor, logger=None) -> 
     # Check if there are no points in input
     if points.size(0) == 0:
         return torch.empty((0,), dtype=torch.bool, device=points.device)
-    # Compare each point (K,2) with each mask point (N,2).
-    equal = torch.all(points[:, None, :] == mask_points[None, :, :], dim=2)  # shape: (K,N)
-    return torch.any(equal, dim=1)
+    
+    # Initialize result tensor
+    result = torch.zeros(points.size(0), dtype=torch.bool, device=points.device)
+    
+    # Process points in batches
+    for start_idx in range(0, points.size(0), batch_size):
+        end_idx = min(start_idx + batch_size, points.size(0))
+        # Get current batch of points
+        batch_points = points[start_idx:end_idx]
+        
+        # Process mask points in sub-batches
+        batch_result = torch.zeros(batch_points.size(0), dtype=torch.bool, device=points.device)
+        
+        for mask_start_idx in range(0, mask_points.size(0), mask_batch_size):
+            mask_end_idx = min(mask_start_idx + mask_batch_size, mask_points.size(0))
+            # Get current batch of mask points
+            batch_mask_points = mask_points[mask_start_idx:mask_end_idx]
+            
+            # Compare batch points with batch mask points
+            # Shape: (batch_size, mask_batch_size, 2)
+            equality = batch_points[:, None, :] == batch_mask_points[None, :, :]
+            
+            # Check if all dimensions match (points are identical)
+            # Shape: (batch_size, mask_batch_size)
+            all_equal = torch.all(equality, dim=2)
+            
+            # Check if any mask point in this batch matches
+            # Shape: (batch_size,)
+            matches = torch.any(all_equal, dim=1)
+            
+            # Update batch results (logical OR with previous results)
+            batch_result = batch_result | matches
+            
+            # Free memory explicitly
+            del equality, all_equal, matches
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        
+        # Add batch results to overall result
+        result[start_idx:end_idx] = batch_result
+        
+        # Free memory explicitly
+        del batch_points, batch_result
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    
+    return result
 
 def get_bgr_image(img):
     """Convert a PyTorch tensor image (C,H,W) to a NumPy BGR image while freeing memory."""

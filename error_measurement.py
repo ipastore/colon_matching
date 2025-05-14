@@ -35,13 +35,14 @@ DEBUG = True  # Global debug flag. Set to False to disable extra debug logging.
 # activated_debug_flags = {"ALL"}
 activated_debug_flags = {"filter_image_pairs","error_measurement"}
 ############################# CHOOSE MODELS #############################
-# model_name = 'sift-nn'
-# model_name = 'gim-lg'
-# model_name = 'tiny-roma'
-# model_name = 'sift-lg'
-# model_name = 'superpoint-lg'
-# model_name = 'roma'
-models = ["sift-nn", "superpoint-lg"]
+# models = ["sift-nn", "superpoint-lg"]
+# models = ["sift-nn"]
+# models = ["gim-lg"]
+# models = ["tiny-roma"]
+# models = ["sift-lg"]
+models = ["superpoint-lg"]
+# models = ["roma"]
+# models = ["sift-nn", "gim-lg", "tiny-roma", "sift-lg", "superpoint-lg", "roma"]
 ############################# CHOOSE IMAGE DIRECTORY #############################
 image_dir = Path(f'data')
 ############################# RESIZE #############################
@@ -109,13 +110,11 @@ pair_images_strategy = "exhaustive" # for filtering image pairs
 
 
 def main_loop():
-
     tracemalloc.start()
 
     # Start logger
     logger = setup_logging(DEBUG, activated_debug_flags)
 
-    
     # Get all submaps of sequence get the names of the submaps
     submaps = [int(f.stem) for f in Path(f'data/{seq}/sparse').iterdir() if f.is_dir()]
     # Sort in ascending order
@@ -125,68 +124,66 @@ def main_loop():
 
     # Create timestamp for report filenames
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    for model_name in models:
-        logger.info(f"Processing model: {model_name}")
-
-        # Initialize the matcher
-        matcher = get_matcher(model_name, device=device, **matcher_kwargs, **ransac_kwargs)
-        debug_log(logger, "error_measurement", f"Extractor conf: {matcher.extractor.conf}")
-        debug_log(logger, "error_measurement", f"Matcher conf: {matcher.matcher.conf}")
     
-        try:
-            # Iterate over all the submaps in the sequence
-            for submap in [submaps[6], submaps[9]]:               ######################### USING JUST SOME SUBMAPS ########################
-            # for submap in submaps:
-                logger.info(f"Starting submap: {submap}")
-                # Define the paths for the submap model and the source of images of the mode
-                sparse_model_dir = seq_dir / 'sparse' / submap
-                
-                # Load the COLMAP reconstruction for the submap
-                reconstruction = pycolmap.Reconstruction(sparse_model_dir)
+    # Iterate over all the submaps in the sequence
+    # for submap in submaps:
+    for submap in [submaps[6]]:               ######################### USING JUST SOME SUBMAPS ########################
+        
+        logger.info(f"Starting submap: {submap}")
+        # Define the paths for the submap model and the source of images of the mode
+        sparse_model_dir = seq_dir / 'sparse' / submap
+        
+        # Load the COLMAP reconstruction for the submap
+        reconstruction = pycolmap.Reconstruction(sparse_model_dir)
 
-                #Get image pairs for the submap
-                images = list(Path(f'data/{seq}/sub_maps_images/{submap}').glob('*.png')) + \
-                        list(Path(f'data/{seq}/img_train/exterior').glob('*.jpg')) + \
-                        list(Path(f'data/{seq}/img_train/exterior').glob('*.JPG')) + \
-                        list(Path(f'data/{seq}/img_train/interior').glob('*.jpg')) + \
-                        list(Path(f'data/{seq}/img_train/interior').glob('*.JPG')) 
-                                        
-                                        
-                # Subsample the images list to avoid memory issues
-                images = images[::subsample]
-                debug_log(logger, "error_measurement", f"{submap} subsampled by {subsample} has {len(images)} images")
-                
-                if len(images) < min_images_afer_subsampling:
-                    logger.info(f"Skipping submap {submap} because it has less than {min_images_afer_subsampling} images after subsampling")
-                    continue
-                
-                covisibility_path = sparse_model_dir / "camerasModel.txt"
-                covisibility_graph = load_covisibility_graph(covisibility_path)
-                # Sort images to ensure they're in sequential order
-                images.sort(key=lambda x: x.name)
+        #Get image pairs for the submap
+        images = list(Path(f'data/{seq}/sub_maps_images/{submap}').glob('*.png')) + \
+                list(Path(f'data/{seq}/img_train/exterior').glob('*.jpg')) + \
+                list(Path(f'data/{seq}/img_train/exterior').glob('*.JPG')) + \
+                list(Path(f'data/{seq}/img_train/interior').glob('*.jpg')) + \
+                list(Path(f'data/{seq}/img_train/interior').glob('*.JPG')) 
+                                                           
+        # Subsample the images list to avoid memory issues
+        images = images[::subsample]
+        debug_log(logger, "error_measurement", f"{submap} subsampled by {subsample} has {len(images)} images")
+        
+        if len(images) < min_images_afer_subsampling:
+            logger.info(f"Skipping submap {submap} because it has less than {min_images_afer_subsampling} images after subsampling")
+            continue
+        
+        covisibility_path = sparse_model_dir / "camerasModel.txt"
+        covisibility_graph = load_covisibility_graph(covisibility_path)
+        # Sort images to ensure they're in sequential order
+        images.sort(key=lambda x: x.name)
 
-                if pair_images_strategy == "exhaustive":
-                
-                    # All with all, passing the filters (covisibility_graph, min_parallax)
-                    pairs = filter_image_pairs(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
-                                            max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)
+        if pair_images_strategy == "exhaustive":
+            # All with all, passing the filters (covisibility_graph, min_parallax)
+            pairs = filter_image_pairs(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
+                                    max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)
+        elif pair_images_strategy == "greedy_sequential":
+            
+            # Take pair of images that first sastisfy the filters (covisibility_graph, min_parallax)
+            pairs = filter_image_pairs_greedy_sequential(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
+                        max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)  
+        else:
+            raise ValueError(f"Unknown pair_images_strategy: {pair_images_strategy}")
+        
+        # Compute total pair of images in the submap with the filtered pairs
+        total_images_submap = len(pairs)
 
-                elif pair_images_strategy == "greedy_sequential":
-                    
-                    # Take pair of images that first sastisfy the filters (covisibility_graph, min_parallax)
-                    pairs = filter_image_pairs_greedy_sequential(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
-                                max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)
-                
-                else:
-                    raise ValueError(f"Unknown pair_images_strategy: {pair_images_strategy}")
-                
-                # Compute total pair of images in the submap with the filtered pairs
-                total_images_submap = len(pairs)
+        if len(pairs) <  min_pairs_for_submap:
+            logger.info(f"Skipping submap {submap} because there are no image pairs to process")
+            continue
 
-                if len(pairs) <  min_pairs_for_submap:
-                    logger.info(f"Skipping submap {submap} because there are no image pairs to process")
-                    continue
+        for model_name in models:
+            try:
+                logger.info(f"Processing model: {model_name}")
 
+                # Initialize the matcher
+                matcher = get_matcher(model_name, device=device, **matcher_kwargs, **ransac_kwargs)
+                debug_log(logger, "error_measurement", f"Extractor conf: {matcher.extractor.conf}")
+                debug_log(logger, "error_measurement", f"Matcher conf: {matcher.matcher.conf}")
+            
                 output_report_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}')
                 output_report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -323,55 +320,6 @@ def main_loop():
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
                 
-            # Al final, genera el reporte de secuencia completa
-            sequence_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}')
-            submaps_dir = sequence_output_dir / 'submaps'
-            
-            # Metadata para el reporte de secuencia
-            metadata = {
-                "device_info": device_info,
-                "resize": resize,
-                "masking": masking,
-                "matcher_params": matcher_kwargs,
-                "subsampling": subsample,
-                "thresholds_r": thresholds_r.tolist(),
-                "thresholds_t": thresholds_t.tolist(),
-                "extractor_config": matcher.extractor.conf,
-                "matcher_config": matcher.matcher.conf
-            }
-            
-            # Crea el reporte final de secuencia
-            create_sequence_report(seq, model_name, submaps_dir, sequence_output_dir, logger, metadata)
-            
-            snapshot = tracemalloc.take_snapshot()
-            top_stats = snapshot.statistics('lineno')
-
-            debug_log(logger, "memory_management", "[Top 10 memory consuming lines]")
-            for stat in top_stats[:10]:
-                debug_log(logger, "memory_management", stat)
-
-        except KeyboardInterrupt:
-            # Código similar pero también guarda el submap actual de forma individual
-            logger.warning("Processing interrupted by user (Ctrl+C)")
-            
-            # Try to finalize current submap if we're in the middle of one
-            current_submap = submaps[submaps.index(submap)] if 'submap' in locals() else None
-            if current_submap and 'submap_start_time' in locals():
-                logger.info(f"Finalizing data for current submap {current_submap} before exiting")
-                submap_data = finalize_current_submap(
-                    submap, submap_rot_errs, submap_trans_errs, pair_metrics, 
-                    submap_start_time, thresholds_r, thresholds_t,
-                    registered_images, total_images_submap, logger
-                )
-                
-                # Guarda el JSON del submap individualmente
-                submap_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}/submaps')
-                submap_output_dir.mkdir(parents=True, exist_ok=True)
-                save_submap_report(
-                    submap_data, seq, submap, model_name, 
-                    submap_output_dir, logger, reason="interrupted"
-                )
-
                 # Al final, genera el reporte de secuencia completa
                 sequence_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}')
                 submaps_dir = sequence_output_dir / 'submaps'
@@ -386,20 +334,69 @@ def main_loop():
                     "thresholds_r": thresholds_r.tolist(),
                     "thresholds_t": thresholds_t.tolist(),
                     "extractor_config": matcher.extractor.conf,
-                    "matcher_config": matcher.matcher.conf,
+                    "matcher_config": matcher.matcher.conf
                 }
                 
                 # Crea el reporte final de secuencia
                 create_sequence_report(seq, model_name, submaps_dir, sequence_output_dir, logger, metadata)
-
+                
                 snapshot = tracemalloc.take_snapshot()
                 top_stats = snapshot.statistics('lineno')
 
                 debug_log(logger, "memory_management", "[Top 10 memory consuming lines]")
                 for stat in top_stats[:10]:
                     debug_log(logger, "memory_management", stat)
+
+            except KeyboardInterrupt:
+                # Código similar pero también guarda el submap actual de forma individual
+                logger.warning("Processing interrupted by user (Ctrl+C)")
                 
-            sys.exit(1)
+                # Try to finalize current submap if we're in the middle of one
+                current_submap = submaps[submaps.index(submap)] if 'submap' in locals() else None
+                if current_submap and 'submap_start_time' in locals():
+                    logger.info(f"Finalizing data for current submap {current_submap} before exiting")
+                    submap_data = finalize_current_submap(
+                        submap, submap_rot_errs, submap_trans_errs, pair_metrics, 
+                        submap_start_time, thresholds_r, thresholds_t,
+                        registered_images, total_images_submap, logger
+                    )
+                    
+                    # Guarda el JSON del submap individualmente
+                    submap_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}/submaps')
+                    submap_output_dir.mkdir(parents=True, exist_ok=True)
+                    save_submap_report(
+                        submap_data, seq, submap, model_name, 
+                        submap_output_dir, logger, reason="interrupted"
+                    )
+
+                    # Al final, genera el reporte de secuencia completa
+                    sequence_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}')
+                    submaps_dir = sequence_output_dir / 'submaps'
+                    
+                    # Metadata para el reporte de secuencia
+                    metadata = {
+                        "device_info": device_info,
+                        "resize": resize,
+                        "masking": masking,
+                        "matcher_params": matcher_kwargs,
+                        "subsampling": subsample,
+                        "thresholds_r": thresholds_r.tolist(),
+                        "thresholds_t": thresholds_t.tolist(),
+                        "extractor_config": matcher.extractor.conf,
+                        "matcher_config": matcher.matcher.conf,
+                    }
+                    
+                    # Crea el reporte final de secuencia
+                    create_sequence_report(seq, model_name, submaps_dir, sequence_output_dir, logger, metadata)
+
+                    snapshot = tracemalloc.take_snapshot()
+                    top_stats = snapshot.statistics('lineno')
+
+                    debug_log(logger, "memory_management", "[Top 10 memory consuming lines]")
+                    for stat in top_stats[:10]:
+                        debug_log(logger, "memory_management", stat)
+                    
+                    sys.exit(1)
         
 
 if __name__ == "__main__":

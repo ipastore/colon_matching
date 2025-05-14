@@ -72,7 +72,7 @@ matcher_kwargs = {
     'n_octave_layers': 4,         # SIFT number of octave layers
 ############################### KNN (SIFT) #############################
     # TODO colon: if we want to upgrade these parameter, some logic in the matcher should be changed. Right now it's hardcoded to 2
-    'k_neighbors': 2             # Number of nearest neighbors to consider for matching
+    'k_neighbors': 2             # Number of nearest neighbors to consider for matching. BUT, I think it would not be useful to improve matching.
 }
 ############################# RANSAC #############################
 #RANSAC it´s not used in the current implementation (we could bypass it)
@@ -307,24 +307,9 @@ def main_loop():
                 # Guarda el JSON del submap individualmente
                 submap_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}/submaps')
                 submap_output_dir.mkdir(parents=True, exist_ok=True)
-                save_submap_report(
-                    submap_data, seq, submap, model_name, 
-                    submap_output_dir, logger, reason="complete"
-                )
-                        
-                del submap_rot_errs, submap_trans_errs, pair_metrics, registered_images
-                del reconstruction, covisibility_graph, images, pairs
-                del submap_data
 
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                
-                # Al final, genera el reporte de secuencia completa
-                sequence_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}')
-                submaps_dir = sequence_output_dir / 'submaps'
-                
-                # Metadata para el reporte de secuencia
+                # TODO colon: add metadata to the submap report
+                # Metadata
                 metadata = {
                     "device_info": device_info,
                     "resize": resize,
@@ -336,19 +321,22 @@ def main_loop():
                     "extractor_config": matcher.extractor.conf,
                     "matcher_config": matcher.matcher.conf
                 }
-                
-                # Crea el reporte final de secuencia
-                create_sequence_report(seq, model_name, submaps_dir, sequence_output_dir, logger, metadata)
-                
-                snapshot = tracemalloc.take_snapshot()
-                top_stats = snapshot.statistics('lineno')
 
-                debug_log(logger, "memory_management", "[Top 10 memory consuming lines]")
-                for stat in top_stats[:10]:
-                    debug_log(logger, "memory_management", stat)
+                save_submap_report(
+                    submap_data, seq, submap, model_name, 
+                    submap_output_dir, logger, metadata, reason="complete"
+                )
+                        
+                del submap_rot_errs, submap_trans_errs, pair_metrics, registered_images
+                del reconstruction, covisibility_graph, images, pairs
+                del submap_data
 
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()              
+                    
             except KeyboardInterrupt:
-                # Código similar pero también guarda el submap actual de forma individual
+                # Finish and save current submap if interrupted
                 logger.warning("Processing interrupted by user (Ctrl+C)")
                 
                 # Try to finalize current submap if we're in the middle of one
@@ -361,19 +349,11 @@ def main_loop():
                         registered_images, total_images_submap, logger
                     )
                     
-                    # Guarda el JSON del submap individualmente
+                    # Save JSON report for the current submap
                     submap_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}/submaps')
                     submap_output_dir.mkdir(parents=True, exist_ok=True)
-                    save_submap_report(
-                        submap_data, seq, submap, model_name, 
-                        submap_output_dir, logger, reason="interrupted"
-                    )
 
-                    # Al final, genera el reporte de secuencia completa
-                    sequence_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}')
-                    submaps_dir = sequence_output_dir / 'submaps'
-                    
-                    # Metadata para el reporte de secuencia
+                    # Metadata
                     metadata = {
                         "device_info": device_info,
                         "resize": resize,
@@ -385,17 +365,13 @@ def main_loop():
                         "extractor_config": matcher.extractor.conf,
                         "matcher_config": matcher.matcher.conf,
                     }
-                    
-                    # Crea el reporte final de secuencia
-                    create_sequence_report(seq, model_name, submaps_dir, sequence_output_dir, logger, metadata)
 
-                    snapshot = tracemalloc.take_snapshot()
-                    top_stats = snapshot.statistics('lineno')
+                    # Save the submap report
+                    save_submap_report(
+                        submap_data, seq, submap, model_name, 
+                        submap_output_dir, logger, metadata, reason="interrupted"
+                    )
 
-                    debug_log(logger, "memory_management", "[Top 10 memory consuming lines]")
-                    for stat in top_stats[:10]:
-                        debug_log(logger, "memory_management", stat)
-                    
                     sys.exit(1)
         
 

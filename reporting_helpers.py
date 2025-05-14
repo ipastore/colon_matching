@@ -15,7 +15,7 @@ def convert_to_serializable(obj):
         return obj.__dict__
     return obj
 
-def save_submap_report(submap_data, seq, submap_name, model_name, output_dir, logger, reason="normal"):
+def save_submap_report(submap_data, seq, submap_name, model_name, output_dir, logger, metadata = None, reason = "normal"):
     """Save report data for a single submap to a JSON file"""
     # Create timestamp for uniqueness
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -35,6 +35,10 @@ def save_submap_report(submap_data, seq, submap_name, model_name, output_dir, lo
         "report_status": reason,
         "data": submap_data
     }
+
+    #Update report with additional metadata if provided
+    if metadata:
+        report.update(metadata)
     
     # Save as JSON
     with open(json_filename, 'w') as json_file:
@@ -80,6 +84,7 @@ def finalize_current_submap(submap, submap_rot_errs, submap_trans_errs, pair_met
     
     return submap_data
 
+#TODO colon: convert this function to be used in a separate script for creating sequence reports.
 def create_sequence_report(seq, model_name, submaps_dir, output_dir, logger, metadata=None):
     """
     Create a sequence report by reading individual submap JSONs.

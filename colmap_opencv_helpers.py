@@ -545,6 +545,7 @@ def get_relative_pose_from_matcher(img0_path, img1_path, camera0, camera1,
     # estimation_options = pycolmap.RANSACOptions()
     result_colmap = pycolmap.estimate_essential_matrix(corrected_mkpts0, corrected_mkpts1, camera0, camera1)
 
+    #TODO: Add penalty for inliers less than min_inliers_for_pose
     # Similarly for essential matrix estimation failure, add penalty instead of skipping
     if result_colmap is None:
         logger.warning(f"Not enough inliers for {img0_path.stem} and {img1_path.stem}. Adding penalty error values.")

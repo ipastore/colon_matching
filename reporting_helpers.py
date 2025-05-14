@@ -60,7 +60,7 @@ def finalize_current_submap(submap, submap_rot_errs, submap_trans_errs, pair_met
     # Compute the average accuracy for this submap
     aa = compute_AA(submap_rot_errs, submap_trans_errs, thresholds_r, thresholds_t)
 
-    # Calculate Nimg for the submap
+    # Calculate Nimg for the submap. Nimg is the number of PAIR of images that were registered over ALL PAIRS of images.
     Nimg_submap = len(registered_images)
     Nimg_percentage = (Nimg_submap / total_images_submap) * 100 if total_images_submap > 0 else 0
     

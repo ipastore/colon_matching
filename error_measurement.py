@@ -99,8 +99,8 @@ min_parallax = 1 # for robust estimation of relative pose (degrees)
 min_pairs_for_submap = 10 # for skipping submaps with too few pairs
 ############################# Min Matches for pose estimation #############################
 min_matches_for_pose = 5 # for skipping pairs with too few matches
+min_inliers_for_pose = 5 # for skipping pairs with too few inliers
 ############################# Thresholds #############################
-#TODO: colon: add a relative threshold to t_colmap for the translation error?
 thresholds_r = np.array([1,3,5,10,20]) 
 thresholds_t = np.array([5,10,15,20,30])
 ############################# Thresholds #############################
@@ -180,8 +180,8 @@ def main_loop():
                 else:
                     raise ValueError(f"Unknown pair_images_strategy: {pair_images_strategy}")
                 
-                # Compute total images in the submap with the filtered pairs
-                total_images_submap = len(set(itertools.chain(*pairs)))
+                # Compute total pair of images in the submap with the filtered pairs
+                total_images_submap = len(pairs)
 
                 if len(pairs) <  min_pairs_for_submap:
                     logger.info(f"Skipping submap {submap} because there are no image pairs to process")
@@ -197,7 +197,7 @@ def main_loop():
                 pair_metrics = []
                 submap_rot_errs = []
                 submap_trans_errs = []
-                registered_images = set()
+                registered_images = []
 
                 # Measure submap pipeline total time
                 submap_start_time = time.perf_counter()
@@ -280,10 +280,9 @@ def main_loop():
                     }
                     pair_metrics.append(pair_info)
 
-                    # Add images to registered images set
-                    registered_images.add(img0_path.name)
-                    registered_images.add(img1_path.name)
-                    
+                    # Add pair of images to registered images set
+                    registered_images.append((img0_path.name, img1_path.name))
+
                     # Save the result of the matcher in hard disk
                     save_result_matcher_npz(
                         output_submap_dir,

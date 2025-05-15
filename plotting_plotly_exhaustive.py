@@ -5,14 +5,14 @@ from pathlib import Path
 import numpy as np
 
 # En tu caso, ajusta la ruta según corresponda
-timestamp_name = '20250331_135343'
+timestamp_name = '20250514_082802'
 output_dir = Path(f'./output/plot_images/plotly/{timestamp_name}')
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # ------------------------------------------------------------------
 # 1) Carga del JSON
 # ------------------------------------------------------------------
-submaps_dir = Path('./output/error_measurement/seq_001/superpoint-lg/20250412_202333/submaps')
+submaps_dir = Path('./output/error_measurement/seq_001/superpoint-lg/20250514_082802/submaps')
 
 # Find all submap JSON files
 submap_files = list(submaps_dir.glob(f"submap_*.json"))

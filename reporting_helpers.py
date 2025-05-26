@@ -5,7 +5,7 @@ import numpy as np
 import time
 from pathlib import Path
 from datetime import datetime
-from colmap_opencv_helpers import compute_AA
+from colmap_opencv_helpers import compute_mAA
 
 # Custom serialization function to handle numpy arrays and SimpleNamespace objects
 def convert_to_serializable(obj):
@@ -15,42 +15,38 @@ def convert_to_serializable(obj):
         return obj.__dict__
     return obj
 
-def save_submap_report(submap_data, seq, submap_name, model_name, output_dir, logger, metadata = None, reason = "normal"):
+def save_submap_report(submap_data, seq, submap_name, model_name, timestamp, metadata, logger=None):
     """Save report data for a single submap to a JSON file"""
-    # Create timestamp for uniqueness
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    # Create directory structure
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Filename with sequence, submap name and timestamp
-    json_filename = output_dir / f"submap_{seq}_{submap_name}_{timestamp}.json"
-    
-    # Add metadata to the submap report
-    report = {
-        "sequence": seq,
-        "submap": submap_name,
-        "model_name": model_name,
-        "timestamp": timestamp,
-        "report_status": reason,
-        "data": submap_data
-    }
 
-    #Update report with additional metadata if provided
-    if metadata:
-        report.update(metadata)
+    # Guarda el JSON del submap individualmente
+    submap_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}/submaps')
+    submap_output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Filename with sequence, submap name and timestamp
+    json_filename = submap_output_dir / f"submap_report_{seq}_{submap_name}_{timestamp}.json"
+
+    # Build report structure
+    report = {
+        "metadata": metadata,
+        "submap_data": submap_data,            # Inside submap_data: "pair_metrics" and "results"
+    }
     
     # Save as JSON
     with open(json_filename, 'w') as json_file:
         json.dump(report, json_file, default=convert_to_serializable, indent=4)
     
-    logger.info(f"Submap report saved as JSON to: {json_filename}")
+    if logger:
+        logger.info(f"Submap report saved as JSON to: {json_filename}")
+    else:
+        print(f"Submap report saved as JSON to: {json_filename}")
+
     return json_filename
 
 def finalize_current_submap(submap, submap_rot_errs, submap_trans_errs, pair_metrics,
                            submap_start_time, thresholds_r, thresholds_t, 
                            registered_images, total_images_submap, logger):
     """Compute statistics for the current submap only - no global accumulation"""
+    
     if not submap_rot_errs:  # If no successful pairs were processed for this submap
         logger.warning(f"No successful pairs processed for submap {submap}, cannot compute stats")
         return {}
@@ -62,24 +58,29 @@ def finalize_current_submap(submap, submap_rot_errs, submap_trans_errs, pair_met
     submap_rmse_rot = np.sqrt(np.mean(np.array(submap_rot_errs) ** 2))
 
     # Compute the average accuracy for this submap
-    aa = compute_AA(submap_rot_errs, submap_trans_errs, thresholds_r, thresholds_t)
+    mAA = compute_mAA(submap_rot_errs, submap_trans_errs, thresholds_r, thresholds_t)
 
     # Calculate Nimg for the submap. Nimg is the number of PAIR of images that were registered over ALL PAIRS of images.
     Nimg_submap = len(registered_images)
     Nimg_percentage = (Nimg_submap / total_images_submap) * 100 if total_images_submap > 0 else 0
+
+    # Construct a dict for results
+    submap_results = {
+            "average_extractor_time": float(np.mean([p["extractor_time"] for p in pair_metrics])) if pair_metrics else 0,
+            "average_filter_time": float(np.mean([p["filter_time"] for p in pair_metrics])) if pair_metrics else 0,
+            "average_matcher_time": float(np.mean([p["matcher_time"] for p in pair_metrics])) if pair_metrics else 0,
+            "average_total_time": float(np.mean([p["total_pair_time"] for p in pair_metrics])) if pair_metrics else 0,
+            "submap_total_time": submap_total_time,
+            "submap_rmse_rotation_deg": submap_rmse_rot,
+            "submap_mAA": mAA,
+            "Total_img": total_images_submap,
+            "Nimg_percentage": Nimg_percentage,
+    }
     
     # Create submap data dictionary
     submap_data = {
-        "pairs": pair_metrics,
-        "average_extractor_time": float(np.mean([p["extractor_time"] for p in pair_metrics])) if pair_metrics else 0,
-        "average_filter_time": float(np.mean([p["filter_time"] for p in pair_metrics])) if pair_metrics else 0,
-        "average_matcher_time": float(np.mean([p["matcher_time"] for p in pair_metrics])) if pair_metrics else 0,
-        "average_total_time": float(np.mean([p["total_pair_time"] for p in pair_metrics])) if pair_metrics else 0,
-        "submap_total_time": submap_total_time,
-        "submap_rmse_rotation_deg": submap_rmse_rot,
-        "submap_AA": aa,
-        "Total_img": total_images_submap,
-        "Nimg_percentage": Nimg_percentage,
+        "pair_metrics": pair_metrics,
+        "results": submap_results
     }
     
     return submap_data
@@ -138,7 +139,7 @@ def create_sequence_report(seq, model_name, submaps_dir, output_dir, logger, met
         sequence_report["submaps"][submap_name] = submap_content
         
         # Accumulate stats for sequence averages
-        all_submap_aas.append(submap_content.get("submap_AA", 0))
+        all_submap_aas.append(submap_content.get("submap_mAA", 0))
         all_extractor_times.append(submap_content.get("average_extractor_time", 0))
         all_filter_times.append(submap_content.get("average_filter_time", 0))
         all_matcher_times.append(submap_content.get("average_matcher_time", 0))

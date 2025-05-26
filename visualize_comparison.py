@@ -165,6 +165,7 @@ def draw_camera(K, R, t, w, h, scale=1, color=[0.8, 0.2, 0.8]):
     # return as list in Open3D format
     return [axis, plane, line_set]
 
+#TODO colon: instead of loading the npz, just load the the whole submap and the the pair_data within the dict
 def visualize_camera_pair(npz_path, colmap_model_path, format=".txt", camera_scale=0.25):
     """
     Visualize a single camera pair using Open3D, showing:

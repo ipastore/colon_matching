@@ -39,8 +39,12 @@ for submap_id, submap_data in submaps_dict.items():
     # Podemos recuperar info global de submap
     total_img = submap_data.get("Total_img", None)
     nimg_percentage = submap_data.get("Nimg_percentage", None)
-    
+
+
     for pair in pairs:
+        if pair["parallax"] < 3 or pair["inliers"] < 50 or pair["t_colmap_norm"] < 0.5:
+
+            continue
 
         mkpts = pair.get("mkpts", None)
 

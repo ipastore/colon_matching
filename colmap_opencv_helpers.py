@@ -40,7 +40,7 @@ def get_device_info(device):
         }
     return device_info
 
-def compute_AA(rot_errors_deg, trans_errors_m, thresholds_r, thresholds_t):
+def compute_mAA(rot_errors_deg, trans_errors_m, thresholds_r, thresholds_t):
     """
     Compute Average Accuracy (AA) for a single scene given rotation & translation errors
     at multiple threshold pairs.
@@ -585,7 +585,7 @@ def get_relative_pose_from_matcher(img0_path, img1_path, camera0, camera1,
     return result_matcher, R01_est, t01_est, extractor_time, filter_time, match_time
 
 
-
+#TODO colon: old, should be replaced by adding key, values to the pair_data dict
 def save_result_matcher_npz(save_dir: Path,
                             model_name: str,
                             result_matcher: dict,

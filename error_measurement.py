@@ -134,7 +134,7 @@ def main_loop():
         sparse_model_dir = seq_dir / 'sparse' / submap
         
         # Load the COLMAP reconstruction for the submap
-        reconstruction = pycolmap.Reconstruction(sparse_model_dir)
+        reconstruction = pycolmap.Reconstruction(str(sparse_model_dir))
 
         #Get image pairs for the submap
         images = list(Path(f'data/{seq}/sub_maps_images/{submap}').glob('*.png')) + \
@@ -209,14 +209,12 @@ def main_loop():
                     # Create a terminal progress bar
                     progress_bar(logger, len(pair_metrics), len(pairs), img0_path, img1_path)
 
+                    # Start timer for pair processing
                     pair_start_time = time.perf_counter()
-                    # Get images names
-
 
                     # Get images names
                     img0_name = get_img_name(img0_path)
                     img1_name = get_img_name(img1_path)
-
 
                     # Get image objects
                     image0 = reconstruction.find_image_with_name(img0_name)
@@ -235,7 +233,7 @@ def main_loop():
                         img0_path, img1_path, camera0, camera1, output_submap_dir, model_name, matcher, logger=logger, resize=resize, masking=masking, plot_kpts=plot_kpts, min_matches_for_pose=min_matches_for_pose
                     )
 
-                    if result_matcher is None:
+                    if result_matcher is None or R01_est is None or t01_est is None:
                         continue
 
                     # rotation error
@@ -245,21 +243,22 @@ def main_loop():
                     trans_err_rel = translation_error_relative_to_colmap(t01_colmap, t01_est)
                     pair_end_time = time.perf_counter()
                     
-                    debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} trans_err_rel: {trans_err_rel:.3f} ")
-                    debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} trans_error_deg: {trans_err_deg:.3f} degrees" )
-                    debug_log(logger, "error_measurement",f"{img0_path.name.rsplit('.', 1)[0]}_{img1_path.name.rsplit('.', 1)[0]} rot_error: {rot_err:.3f} degrees" )
+                    debug_log(logger, "error_measurement",f"{img0_name}_{img1_name} trans_err_rel: {trans_err_rel:.3f} ")
+                    debug_log(logger, "error_measurement",f"{img0_name}_{img1_name} trans_error_deg: {trans_err_deg:.3f} degrees" )
+                    debug_log(logger, "error_measurement",f"{img0_name}_{img1_name} rot_error: {rot_err:.3f} degrees" )
                     debug_log(logger, "error_measurement",f"parallax: {parallax:.3f} degrees" )
                     debug_log(logger, "error_measurement",f"inliers: {result_matcher['num_inliers']}")
                     debug_log(logger, "error_measurement",f"matches: {len(result_matcher['matched_kpts0'])}")
 
-                    #TODO colon: make another submap_errs_rel or whatever if I want to use both metrics.
+                    # TODO colon: change this to append it in the pair_info dict?
                     submap_rot_errs.append(rot_err)
                     submap_trans_errs.append(trans_err_deg)
 
+                    # TODO colon: add whatever I added in the npz to have a unified format
                     # Build a dictionary for this pair
                     pair_info = {
-                        "image0": img0_path.name,
-                        "image1": img1_path.name,
+                        "image0": img0_name,
+                        "image1": img1_name,
                         "mkpts": len(result_matcher['matched_kpts0']),
                         "inliers": result_matcher['num_inliers'],
                         "kpts0": len(result_matcher['all_kpts0']),
@@ -272,25 +271,31 @@ def main_loop():
                         "trans_error_deg":    trans_err_deg,
                         "trans_error_rel": trans_err_rel,
                         "t_colmap_norm": np.linalg.norm(t01_colmap),
+                        "t_est_norm": np.linalg.norm(t01_est),
                         "covis_score": covis_score,
-                        "parallax": parallax
+                        "parallax": parallax,
+                        "R01_est": R01_est,
+                        "t01_est": t01_est,
+                        "R01_colmap": R01_colmap,
+                        "t01_colmap": t01_colmap,
                     }
                     pair_metrics.append(pair_info)
 
                     # Add pair of images to registered images set
-                    registered_images.append((img0_path.name, img1_path.name))
+                    registered_images.append((img0_name, img1_name))
 
-                    # Save the result of the matcher in hard disk
-                    save_result_matcher_npz(
-                        output_submap_dir,
-                        model_name,
-                        result_matcher,
-                        img0_name,
-                        img1_name,
-                        R01_est,
-                        t01_est, 
-                        parallax,
-                    )
+                    # # TODO colon: change this structure to saving previously in pair_info
+                    # # Save the result of the matcher in hard disk
+                    # save_result_matcher_npz(
+                    #     output_submap_dir,
+                    #     model_name,
+                    #     result_matcher,
+                    #     img0_name,
+                    #     img1_name,
+                    #     R01_est,
+                    #     t01_est, 
+                    #     parallax,
+                    # )
                                     
                     del result_matcher, R01_est, t01_est, R01_colmap, t01_colmap, image0, image1, camera0, camera1, pair_info
                     gc.collect()
@@ -304,10 +309,6 @@ def main_loop():
                     registered_images, total_images_submap, logger
                 )
                 
-                # Guarda el JSON del submap individualmente
-                submap_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}/submaps')
-                submap_output_dir.mkdir(parents=True, exist_ok=True)
-
                 # TODO colon: add metadata to the submap report
                 # Metadata
                 metadata = {
@@ -319,12 +320,17 @@ def main_loop():
                     "thresholds_r": thresholds_r.tolist(),
                     "thresholds_t": thresholds_t.tolist(),
                     "extractor_config": matcher.extractor.conf,
-                    "matcher_config": matcher.matcher.conf
+                    "matcher_config": matcher.matcher.conf, 
+                    "sequence": seq,
+                    "submap": submap,
+                    "model_name": model_name,
+                    "timestamp": timestamp,
+                    "report_status": "complete",
                 }
 
                 save_submap_report(
-                    submap_data, seq, submap, model_name, 
-                    submap_output_dir, logger, metadata, reason="complete"
+                    submap_data, seq, submap, model_name, timestamp,
+                    metadata, logger
                 )
                         
                 del submap_rot_errs, submap_trans_errs, pair_metrics, registered_images
@@ -341,6 +347,7 @@ def main_loop():
                 
                 # Try to finalize current submap if we're in the middle of one
                 current_submap = submaps[submaps.index(submap)] if 'submap' in locals() else None
+
                 if current_submap and 'submap_start_time' in locals():
                     logger.info(f"Finalizing data for current submap {current_submap} before exiting")
                     submap_data = finalize_current_submap(
@@ -349,10 +356,7 @@ def main_loop():
                         registered_images, total_images_submap, logger
                     )
                     
-                    # Save JSON report for the current submap
-                    submap_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}/submaps')
-                    submap_output_dir.mkdir(parents=True, exist_ok=True)
-
+                    # TODO colon: add metadata to the submap report
                     # Metadata
                     metadata = {
                         "device_info": device_info,
@@ -363,13 +367,17 @@ def main_loop():
                         "thresholds_r": thresholds_r.tolist(),
                         "thresholds_t": thresholds_t.tolist(),
                         "extractor_config": matcher.extractor.conf,
-                        "matcher_config": matcher.matcher.conf,
+                        "matcher_config": matcher.matcher.conf, 
+                        "sequence": seq,
+                        "submap": submap,
+                        "model_name": model_name,
+                        "timestamp": timestamp,
+                        "report_status": "interrupted",
                     }
 
-                    # Save the submap report
                     save_submap_report(
-                        submap_data, seq, submap, model_name, 
-                        submap_output_dir, logger, metadata, reason="interrupted"
+                        submap_data, seq, submap, model_name, timestamp,
+                        metadata, logger
                     )
 
                     sys.exit(1)

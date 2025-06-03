@@ -82,9 +82,9 @@ ransac_kwargs = {
     'ransac_iters': 0
 }
 ############################# Seq #############################
-seq = "seq_001"
+# seq = "seq_001"
 # seq = "graham-hall_toy"
-# seq = "seq_001_toy"
+seq = "seq_001_toy"
 seq_dir = Path(f'data/{seq}')
 ############################# Subsample #############################
 subsample = 1 # for subsampling the img_train list
@@ -105,8 +105,8 @@ min_inliers_for_pose = 5 # for skipping pairs with too few inliers
 thresholds_r = np.array([1,3,5,10,20]) 
 thresholds_t = np.array([5,10,15,20,30])
 ############################# Thresholds #############################
-# pair_images_strategy = "greedy_sequential" # for filtering image pairs
-pair_images_strategy = "exhaustive" # for filtering image pairs
+pair_images_strategy = "greedy_sequential" # for filtering image pairs
+# pair_images_strategy = "exhaustive" # for filtering image pairs
 
 
 def main_loop():
@@ -126,8 +126,8 @@ def main_loop():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # Iterate over all the submaps in the sequence
-    # for submap in submaps:
-    for submap in [submaps[6]]:               ######################### USING JUST SOME SUBMAPS ########################
+    for submap in submaps:
+    # for submap in [submaps[6], submaps[9]]:               ######################### USING JUST SOME SUBMAPS ########################
         
         logger.info(f"Starting submap: {submap}")
         # Define the paths for the submap model and the source of images of the mode
@@ -135,6 +135,9 @@ def main_loop():
         
         # Load the COLMAP reconstruction for the submap
         reconstruction = pycolmap.Reconstruction(str(sparse_model_dir))
+
+        # Get p3d error for submap pre filtering[]
+        submap_p3d_errors_pre_filter = [p3d.error for p3d in reconstruction.points3D.values()]
 
         #Get image pairs for the submap
         images = list(Path(f'data/{seq}/sub_maps_images/{submap}').glob('*.png')) + \
@@ -158,12 +161,12 @@ def main_loop():
 
         if pair_images_strategy == "exhaustive":
             # All with all, passing the filters (covisibility_graph, min_parallax)
-            pairs = filter_image_pairs(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
+            pairs, submap_p3d_errors = filter_image_pairs(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
                                     max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)
         elif pair_images_strategy == "greedy_sequential":
             
             # Take pair of images that first sastisfy the filters (covisibility_graph, min_parallax)
-            pairs = filter_image_pairs_greedy_sequential(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
+            pairs, submap_p3d_errors = filter_image_pairs_greedy_sequential(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
                         max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)  
         else:
             raise ValueError(f"Unknown pair_images_strategy: {pair_images_strategy}")
@@ -205,7 +208,8 @@ def main_loop():
                     img1_path = pair_data["img1"]
                     covis_score = pair_data["covis_score"]
                     parallax = pair_data["median_parallax"]
-                    
+                    reprojection_errors = pair_data["reprojection_errors"]
+
                     # Create a terminal progress bar
                     progress_bar(logger, len(pair_metrics), len(pairs), img0_path, img1_path)
 
@@ -227,8 +231,7 @@ def main_loop():
                     # Get relative pose from colmap
                     R01_colmap, t01_colmap = get_relative_pose_from_colmap(image0, image1)
                     
-                    ##### START get_relative_pose_from_matcher #######
-                    # Get relative pose froom matcher
+                    # Get relative pose from matcher
                     result_matcher, R01_est, t01_est, extractor_time, filter_time, match_time = get_relative_pose_from_matcher(
                         img0_path, img1_path, camera0, camera1, output_submap_dir, model_name, matcher, logger=logger, resize=resize, masking=masking, plot_kpts=plot_kpts, min_matches_for_pose=min_matches_for_pose
                     )
@@ -278,7 +281,12 @@ def main_loop():
                         "t01_est": t01_est,
                         "R01_colmap": R01_colmap,
                         "t01_colmap": t01_colmap,
+                        "mean_reprojection_error": np.mean(reprojection_errors),
+                        "std_reprojection_error": np.std(reprojection_errors),
+                        "median_reprojection_error": np.median(reprojection_errors),
+                        "distance_bw_frames": pair_data["distance_bw_frames"],
                     }
+
                     pair_metrics.append(pair_info)
 
                     # Add pair of images to registered images set
@@ -323,6 +331,12 @@ def main_loop():
                     "matcher_config": matcher.matcher.conf, 
                     "sequence": seq,
                     "submap": submap,
+                    "submap_p3d_errors_pre_filter": submap_p3d_errors_pre_filter,
+                    "mean_submap_p3d_error_pre_filter": np.mean(submap_p3d_errors_pre_filter),
+                    "median_submap_p3d_error_pre_filter": np.median(submap_p3d_errors_pre_filter),
+                    "submap_p3d_errors": submap_p3d_errors,
+                    "mean_submap_p3d_error": np.mean(submap_p3d_errors),
+                    "median_submap_p3d_error": np.median(submap_p3d_errors),
                     "model_name": model_name,
                     "timestamp": timestamp,
                     "report_status": "complete",
@@ -339,8 +353,8 @@ def main_loop():
 
                 gc.collect()
                 if torch.cuda.is_available():
-                    torch.cuda.empty_cache()              
-                    
+                    torch.cuda.empty_cache()
+
             except KeyboardInterrupt:
                 # Finish and save current submap if interrupted
                 logger.warning("Processing interrupted by user (Ctrl+C)")
@@ -370,6 +384,12 @@ def main_loop():
                         "matcher_config": matcher.matcher.conf, 
                         "sequence": seq,
                         "submap": submap,
+                        "submap_p3d_errors_pre_filter": submap_p3d_errors_pre_filter,
+                        "mean_submap_p3d_error_pre_filter": np.mean(submap_p3d_errors_pre_filter),
+                        "median_submap_p3d_error_pre_filter": np.median(submap_p3d_errors_pre_filter),
+                        "submap_p3d_errors": submap_p3d_errors,
+                        "mean_submap_p3d_error": np.mean(submap_p3d_errors),
+                        "median_submap_p3d_error": np.median(submap_p3d_errors),
                         "model_name": model_name,
                         "timestamp": timestamp,
                         "report_status": "interrupted",

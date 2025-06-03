@@ -286,12 +286,16 @@ def filter_image_pairs_greedy_sequential(
     #TODO colon: check if it is necessary to filter the 3D points. To by pass, set parameters to 0
     valid_points = filter_3D_points(reconstruction, min_track_len, max_reproj_error)
     
+    # Get error of all the 3D valid points
+    p3d_errors = [reconstruction.points3D[p3d_id].error for p3d_id in valid_points]
+
     i = 0
     # Greedy forward matching of pairs
     while i < len(images):
         img0 = images[i]
         img0_name = get_img_name(img0)
         match_found = False
+
 
         for j in range(i + 1, len(images)):
             img1 = images[j]
@@ -355,7 +359,16 @@ def filter_image_pairs_greedy_sequential(
                 debug_log(logger, 'filter_image_pairs',
                             f"Pair ({img0_name}, {img1_name}) rejected: parallax {(median_parallax):.2f}° < {min_parallax:.2f}°")
                 continue
+
+            # Get frame distance
+            distance_bw_frames = get_frame_distance(img0_name, img1_name)
         
+            # Report the reprojection error for the pair with the original 3D points
+            shared_points_pre_filtering = pointsA.intersection(pointsB)
+            
+            reprojection_errors = [
+                reconstruction.points3D[pid].error for pid in shared_points_pre_filtering
+            ]
             
             final_pairs.append({
                 "img0": img0,
@@ -363,7 +376,10 @@ def filter_image_pairs_greedy_sequential(
                 "shared_points": n_shared,
                 "covis_score": covis_score,
                 "median_parallax": median_parallax,
+                "reprojection_errors": reprojection_errors,
+                "distance_bw_frames": distance_bw_frames,
             })
+
             match_found = True
             i = j #Jump forward in the sequence
             debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) passed all filters.")
@@ -376,8 +392,9 @@ def filter_image_pairs_greedy_sequential(
     debug_log(logger, 'filter_image_pairs', f"{len(images)} initial images")
     debug_log(logger, 'filter_image_pairs', f"{len(final_pairs)} pairs passed all filters")
     
-    return final_pairs
+    return final_pairs, p3d_errors
 
+#TODO: colon add metric for getting the mean and median of the reprojection error of all the 3D shared points
 def filter_image_pairs(
     images,
     reconstruction,
@@ -410,7 +427,10 @@ def filter_image_pairs(
 
     # Filter 3D points based on track length and reprojection error
     valid_points = filter_3D_points(reconstruction, min_track_len, max_reproj_error)
-    
+
+    # Get error of all the 3D valid points
+    p3d_errors = [reconstruction.points3D[p3d_id].error for p3d_id in valid_points]
+
     # Exhaustive matching: check all possible pairs
     for i in range(len(images)):
         img0 = images[i]
@@ -479,7 +499,17 @@ def filter_image_pairs(
                 debug_log(logger, 'filter_image_pairs',
                           f"Pair ({img0_name}, {img1_name}) rejected: parallax {(median_parallax):.2f}° < {min_parallax:.2f}°")
                 continue
-        
+
+            # Get frame distance
+            distance_bw_frames = get_frame_distance(img0_name, img1_name)
+
+            # Report the reprojection error for the pair with the original 3D points
+            shared_points_pre_filtering = pointsA.intersection(pointsB)
+            
+            reprojection_errors = [
+                reconstruction.points3D[pid].error for pid in shared_points_pre_filtering
+            ]
+       
             # This pair passed all filters, add to final pairs
             final_pairs.append({
                 "img0": img0,
@@ -487,13 +517,15 @@ def filter_image_pairs(
                 "shared_points": n_shared,
                 "covis_score": covis_score,
                 "median_parallax": median_parallax,
+                "reprojection_errors": reprojection_errors,
+                "distance_bw_frames": distance_bw_frames,
             })
             debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) passed all filters.")
 
     debug_log(logger, 'filter_image_pairs', f"{len(images)} initial images")
     debug_log(logger, 'filter_image_pairs', f"{len(final_pairs)} pairs passed all filters")
     
-    return final_pairs
+    return final_pairs, p3d_errors
 
 def get_relative_pose_from_colmap(image0, image1):
     """Get relative pose between two images from a COLMAP reconstruction"""
@@ -640,3 +672,19 @@ def get_img_name(img_path):
         return f"{uproot_folder}/{img_path.name}"
     else:
         return img_path.name
+    
+def get_frame_distance(img0_name, img1_name):
+    """
+    Extract the frame number from the image names and compute the distance between them.
+    Args:
+        img0_name (str): Name of the first image
+        img1_name (str): Name of the second image
+    Returns:
+        int: Distance between the two frames
+    """
+    # Extract the frame number from the image names
+    frame0 = int(img0_name.split(".")[0][3:])   # Assuming format like out8627.png
+    frame1 = int(img1_name.split(".")[0][3:])   # Assuming format like out8627.png
+    # Compute the distance between the two frames
+    
+    return abs (frame0 - frame1)

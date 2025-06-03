@@ -15,15 +15,18 @@ def convert_to_serializable(obj):
         return obj.__dict__
     return obj
 
-def save_submap_report(submap_data, seq, submap_name, model_name, timestamp, metadata, logger=None):
+def save_submap_report(submap_data, seq, submap_name, model_name, timestamp, metadata, original_dir=None, logger=None):
     """Save report data for a single submap to a JSON file"""
 
-    # Guarda el JSON del submap individualmente
-    submap_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}/submaps')
-    submap_output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Filename with sequence, submap name and timestamp
-    json_filename = submap_output_dir / f"submap_report_{seq}_{submap_name}_{timestamp}.json"
+    if original_dir: 
+        submap_output_dir = original_dir
+        json_filename = submap_output_dir / f"submap_report_{seq}_{submap_name}_{timestamp}_recomputed.json"
+    else:
+        # Guarda el JSON del submap individualmente
+        submap_output_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}/submaps')
+        submap_output_dir.mkdir(parents=True, exist_ok=True)
+        # Filename with sequence, submap name and timestamp
+        json_filename = submap_output_dir / f"submap_report_{seq}_{submap_name}_{timestamp}.json"
 
     # Build report structure
     report = {

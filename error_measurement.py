@@ -97,7 +97,7 @@ max_reproj_error = 2.0 # for filtering image pairs
 ############################ Parallax #############################
 min_parallax = 1 # for robust estimation of relative pose (degrees)
 ############################# Min Pairs for submap #############################
-min_pairs_for_submap = 10 # for skipping submaps with too few pairs
+min_pairs_for_submap = 5 # for skipping submaps with too few pairs
 ############################# Min Matches for pose estimation #############################
 min_matches_for_pose = 5 # for skipping pairs with too few matches
 min_inliers_for_pose = 5 # for skipping pairs with too few inliers
@@ -107,9 +107,17 @@ thresholds_t = np.array([5,10,15,20,30])
 ############################# Thresholds #############################
 pair_images_strategy = "greedy_sequential" # for filtering image pairs
 # pair_images_strategy = "exhaustive" # for filtering image pairs
-
+subset_strategy = "random" # uses exhaustive filtering and then choosing a randome subset of pairs
+random_subset_size = 900 
+############################### Min distance between frames #############################
+min_distance_bw_frames = 5 
 
 def main_loop():
+    
+    # Set seeds for reproducibility
+    seed = 42
+    set_all_seeds(seed)
+
     tracemalloc.start()
 
     # Start logger
@@ -162,12 +170,25 @@ def main_loop():
         if pair_images_strategy == "exhaustive":
             # All with all, passing the filters (covisibility_graph, min_parallax)
             pairs, submap_p3d_errors = filter_image_pairs(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
-                                    max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)
+                                    max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, 
+                                    min_distance_bw_frames=min_distance_bw_frames, logger=logger)
+            if subset_strategy == "random":
+                # Randomly select a subset of pairs
+                original_size = len(pairs)
+                pairs = select_random_subset_of_pairs(pairs, random_subset_size)
+                debug_log(logger, "filter_image_pairs", f"Selected random subset of {len(pairs)} pairs from {original_size} total pairs.")
+
         elif pair_images_strategy == "greedy_sequential":
-            
             # Take pair of images that first sastisfy the filters (covisibility_graph, min_parallax)
             pairs, submap_p3d_errors = filter_image_pairs_greedy_sequential(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
-                        max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, logger=logger)  
+                        max_reproj_error=max_reproj_error, min_shared_points=min_shared_points,
+                         min_distance_bw_frames=min_distance_bw_frames,  logger=logger)
+            if subset_strategy == "random":
+                # Randomly select a subset of pairs
+                original_size = len(pairs)
+                pairs = select_random_subset_of_pairs(pairs, random_subset_size)
+                debug_log(logger, "filter_image_pairs", f"Selected random subset of {len(pairs)} pairs from {original_size} total pairs.")
+
         else:
             raise ValueError(f"Unknown pair_images_strategy: {pair_images_strategy}")
         
@@ -344,7 +365,7 @@ def main_loop():
 
                 save_submap_report(
                     submap_data, seq, submap, model_name, timestamp,
-                    metadata, logger
+                    metadata, logger=logger
                 )
                         
                 del submap_rot_errs, submap_trans_errs, pair_metrics, registered_images
@@ -397,7 +418,7 @@ def main_loop():
 
                     save_submap_report(
                         submap_data, seq, submap, model_name, timestamp,
-                        metadata, logger
+                        metadata, logger=logger
                     )
 
                     sys.exit(1)

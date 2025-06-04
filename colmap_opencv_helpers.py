@@ -11,6 +11,8 @@ import time
 from matching.viz import plot_matches
 from pathlib import Path
 import json
+import random
+import os
 
 def get_device_info(device):
     """Get device information similar to nvidia-smi."""
@@ -262,6 +264,7 @@ def filter_image_pairs_greedy_sequential(
     min_track_len=3,
     max_reproj_error=2.0,
     min_shared_points=15,
+    min_distance_bw_frames=0,
     logger=None
 ):
     """
@@ -362,6 +365,9 @@ def filter_image_pairs_greedy_sequential(
 
             # Get frame distance
             distance_bw_frames = get_frame_distance(img0_name, img1_name)
+            if distance_bw_frames < min_distance_bw_frames:
+                debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name})rejected:  has distance {distance_bw_frames} < {min_distance_bw_frames}.")
+                continue
         
             # Report the reprojection error for the pair with the original 3D points
             shared_points_pre_filtering = pointsA.intersection(pointsB)
@@ -404,6 +410,7 @@ def filter_image_pairs(
     min_track_len=3,
     max_reproj_error=2.0,
     min_shared_points=15,
+    min_distance_bw_frames=0,
     logger=None
 ):
     """
@@ -502,6 +509,9 @@ def filter_image_pairs(
 
             # Get frame distance
             distance_bw_frames = get_frame_distance(img0_name, img1_name)
+            if distance_bw_frames < min_distance_bw_frames:
+                debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) has distance {distance_bw_frames} < {min_distance_bw_frames}. Skipping.")
+                continue
 
             # Report the reprojection error for the pair with the original 3D points
             shared_points_pre_filtering = pointsA.intersection(pointsB)
@@ -688,3 +698,35 @@ def get_frame_distance(img0_name, img1_name):
     # Compute the distance between the two frames
     
     return abs (frame0 - frame1)
+
+def set_all_seeds(seed):
+    """Set all seeds for reproducible results."""
+
+    # Python's built-in random
+    random.seed(seed)
+    
+    # NumPy
+    np.random.seed(seed)
+    
+    # PyTorch
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)  # For multi-GPU
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    
+    # Set environment variable for any libraries that check it
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    
+    print(f"All seeds set to {seed} for reproducibility")
+
+def select_random_subset_of_pairs(pairs, random_subset_size):
+
+    random_subset_size = min(random_subset_size, len(pairs))
+    indices = np.random.choice(len(pairs), random_subset_size, replace=False)
+    random_pairs = [pairs[i] for i in indices]
+
+    
+    return random_pairs
+

@@ -98,6 +98,8 @@ def create_mask_normalized(frame_gray_norm):
     """
     Create a mask for specularities for images normalized to [0,1].
     The bright threshold 220/255 (~0.86) is inverted and the dark threshold 10/255 (~0.04) is applied.
+    0 = Specularities and dark spots, 1 = everything else.
+
     """
     kernel = np.ones((5, 5), np.float32)
     # Threshold for bright spots (inverted)
@@ -217,7 +219,10 @@ def get_bgr_image(img):
 
 
 def get_mask_and_masked_image(img_np):
-    """Return the mask and the masked image (in RGB) given a NumPy BGR image while minimizing memory usage."""
+    """
+    Return the mask and the masked image (in RGB) given a NumPy BGR image.
+    0 = Specularities and dark spots, 1 = everything else.
+    """
     img_gray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
     mask = create_mask_normalized(img_gray).astype(np.uint8)
 

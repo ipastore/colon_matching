@@ -28,10 +28,10 @@
             gap: 40px;
             flex-wrap: wrap;
         }
-        .slider-container {
+        .input-container {
             margin: 10px;
         }
-        .slider-container label {
+        .input-container label {
             font-weight: bold;
         }
         .plots {
@@ -52,19 +52,22 @@
 
 <div class="controls">
     <div class="controls-inner">
-        <div class="slider-container">
-            <label for="min_inliers">Min Inliers: <span id="min_inliers_value">0</span></label><br>
-            <input type="range" id="min_inliers" min="0" max="500" step="10" value="0" oninput="updatePlots()">
+        <div class="input-container">
+            <label for="min_inliers">Min Inliers: </label>
+            <input type="text" id="min_inliers" value="0">
         </div>
-        <div class="slider-container">
-            <label for="min_parallax">Min Parallax (deg): <span id="min_parallax_value">0.0</span></label><br>
-            <input type="range" id="min_parallax" min="0" max="30" step="0.1" value="0" oninput="updatePlots()">
+        <div class="input-container">
+            <label for="min_parallax">Min Parallax (deg): </label>
+            <input type="text" id="min_parallax" value="0.0">
         </div>
-        <div class="slider-container">
-            <label for="min_distance">Min Distance between frames: <span id="min_distance_value">0</span></label><br>
-            <input type="range" id="min_distance" min="0" max="500" step="1" value="0" oninput="updatePlots()">
+        <div class="input-container">
+            <label for="min_distance">Min Distance between frames: </label>
+            <input type="text" id="min_distance" value="0">
         </div>
-            
+        <div class="input-container">
+            <button onclick="updatePlots()">Filter</button>
+            <button onclick="resetFilters()">Reset</button>
+        </div>
     </div>
 </div>
 
@@ -94,18 +97,17 @@ uniqueSubmaps.forEach((submap, idx) => {
     submapColorMap[submap] = colorScale[idx % colorScale.length];
 });
 
-function updateSliderDisplays() {
-    document.getElementById('min_inliers_value').textContent = document.getElementById('min_inliers').value;
-    document.getElementById('min_parallax_value').textContent = (+document.getElementById('min_parallax').value).toFixed(1);
-    document.getElementById('min_distance_value').textContent = document.getElementById('min_distance').value;
+function resetFilters() {
+    document.getElementById('min_inliers').value = 0;
+    document.getElementById('min_parallax').value = 0.0;
+    document.getElementById('min_distance').value = 0;
+    updatePlots();
 }
 
 function updatePlots() {
-    updateSliderDisplays();
-
-    const minInliers = +document.getElementById('min_inliers').value;
-    const minParallax = +document.getElementById('min_parallax').value;
-    const minDistance = +document.getElementById('min_distance').value;
+    const minInliers = parseFloat(document.getElementById('min_inliers').value) || 0;
+    const minParallax = parseFloat(document.getElementById('min_parallax').value) || 0.0;
+    const minDistance = parseFloat(document.getElementById('min_distance').value) || 0;
 
     const filtered = data.filter(d => d.inliers >= minInliers && d.parallax >= minParallax && d.distance_bw_frames >= minDistance);
 
@@ -187,23 +189,57 @@ function updatePlots() {
         uirevision: 'true'
     });
 
-    // Scatter plots
+    // // Scatter plots
+    // function scatterPlot(xField, yField, title, divId) {
+    //     const xMax = Math.max(...data.map(d => d[xField])) * 1.05;
+    //     const yMax = Math.max(...data.map(d => d[yField])) * 1.05;
+        
+    //     Plotly.react(divId, [{
+    //         x: filtered.map(d => d[xField]),
+    //         y: filtered.map(d => d[yField]),
+    //         mode: 'markers',
+    //         type: 'scatter',
+    //         marker: {
+    //             size: 8,
+    //             color: filtered.map(d => submapColorMap[d.submap_id]),
+    //         },
+    //         hovertext: filtered.map(fullHover),
+    //         hoverinfo: 'text'
+    //     }], {
+    //         title: title,
+    //         xaxis: { 
+    //             title: xField,
+    //             range: [0, xMax]
+    //         },
+    //         yaxis: { 
+    //             title: yField,
+    //             range: [0, yMax]
+    //         },
+    //         uirevision: 'true'
+    //     });
+    // }
+
     function scatterPlot(xField, yField, title, divId) {
         const xMax = Math.max(...data.map(d => d[xField])) * 1.05;
         const yMax = Math.max(...data.map(d => d[yField])) * 1.05;
-        
-        Plotly.react(divId, [{
-            x: filtered.map(d => d[xField]),
-            y: filtered.map(d => d[yField]),
+    
+        // Create scatter plot traces grouped by submap_id
+        const scatterTraces = Object.keys(submapGroups).map(submap => ({
+            x: submapGroups[submap].map(d => d[xField]),
+            y: submapGroups[submap].map(d => d[yField]),
             mode: 'markers',
             type: 'scatter',
+            name: submap, // Submap name for legend interactivity
             marker: {
                 size: 8,
-                color: filtered.map(d => submapColorMap[d.submap_id]),
+                color: submapColorMap[submap],
             },
-            hovertext: filtered.map(fullHover),
+            hovertext: submapGroups[submap].map(fullHover),
             hoverinfo: 'text'
-        }], {
+        }));
+        
+        // Render the scatter plot with grouped traces
+        Plotly.react(divId, scatterTraces, {
             title: title,
             xaxis: { 
                 title: xField,
@@ -213,7 +249,8 @@ function updatePlots() {
                 title: yField,
                 range: [0, yMax]
             },
-            uirevision: 'true'
+            uirevision: 'true',
+            showlegend: true // Enable legend for interactivity
         });
     }
 

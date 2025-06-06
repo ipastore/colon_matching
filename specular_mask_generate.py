@@ -19,7 +19,7 @@ def main():
         mask, _ = get_mask_and_masked_image(img_np)
         # visualize_mask_and_image(mask, masked_img)
         colmap_mask = adapt_mask_to_colmap(mask)
-        mask_path = output_dir / f"{img_path.stem}.png"
+        mask_path = output_dir / f"{img_path.stem}.png.png"
         cv2.imwrite(str(mask_path), colmap_mask)
 
     print(f"All masked images saved to {output_dir}")

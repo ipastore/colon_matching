@@ -44,7 +44,7 @@ models = ["superpoint-lg"]
 # models = ["roma"]
 # models = ["sift-nn", "gim-lg", "tiny-roma", "sift-lg", "superpoint-lg", "roma"]
 ############################# CHOOSE IMAGE DIRECTORY #############################
-image_dir = Path(f'data')
+# image_dir = Path(f'data')
 ############################# RESIZE #############################
 # resize = 512
 resize = None
@@ -82,9 +82,9 @@ ransac_kwargs = {
     'ransac_iters': 0
 }
 ############################# Seq #############################
-# seq = "seq_001"
+seq = "seq_001"
 # seq = "graham-hall_toy"
-seq = "seq_001_toy"
+# seq = "seq_001_v2"
 seq_dir = Path(f'data/{seq}')
 ############################# Subsample #############################
 subsample = 1 # for subsampling the img_train list
@@ -95,20 +95,20 @@ min_shared_points = 15 # for filtering image pairs
 min_track_len = 3 # for filtering image pairs
 max_reproj_error = 2.0 # for filtering image pairs
 ############################ Parallax #############################
-min_parallax = 1 # for robust estimation of relative pose (degrees)
+min_parallax = 4 # for robust estimation of relative pose (degrees)
 ############################# Min Pairs for submap #############################
 min_pairs_for_submap = 5 # for skipping submaps with too few pairs
 ############################# Min Matches for pose estimation #############################
-min_matches_for_pose = 5 # for skipping pairs with too few matches
-min_inliers_for_pose = 5 # for skipping pairs with too few inliers
+min_matches_for_pose = 50 # for skipping pairs with too few matches
+min_inliers_for_pose = 50 # for skipping pairs with too few inliers
 ############################# Thresholds #############################
 thresholds_r = np.array([1,3,5,10,20]) 
 thresholds_t = np.array([5,10,15,20,30])
 ############################# Thresholds #############################
-pair_images_strategy = "greedy_sequential" # for filtering image pairs
-# pair_images_strategy = "exhaustive" # for filtering image pairs
-subset_strategy = "random" # uses exhaustive filtering and then choosing a randome subset of pairs
-random_subset_size = 900 
+# pair_images_strategy = "greedy_sequential" # for filtering image pairs
+pair_images_strategy = "exhaustive" # for filtering image pairs
+random_subset = True # uses exhaustive filtering and then choosing a randome subset of pairs
+random_subset_size = 1000
 ############################### Min distance between frames #############################
 min_distance_bw_frames = 5 
 
@@ -134,8 +134,8 @@ def main_loop():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # Iterate over all the submaps in the sequence
-    for submap in submaps:
-    # for submap in [submaps[6], submaps[9]]:               ######################### USING JUST SOME SUBMAPS ########################
+    # for submap in submaps:
+    for submap in [submaps[6], submaps[9]]:               ######################### USING JUST SOME SUBMAPS ########################
         
         logger.info(f"Starting submap: {submap}")
         # Define the paths for the submap model and the source of images of the mode
@@ -172,7 +172,7 @@ def main_loop():
             pairs, submap_p3d_errors = filter_image_pairs(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
                                     max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, 
                                     min_distance_bw_frames=min_distance_bw_frames, logger=logger)
-            if subset_strategy == "random":
+            if random_subset:
                 # Randomly select a subset of pairs
                 original_size = len(pairs)
                 pairs = select_random_subset_of_pairs(pairs, random_subset_size)
@@ -183,7 +183,7 @@ def main_loop():
             pairs, submap_p3d_errors = filter_image_pairs_greedy_sequential(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
                         max_reproj_error=max_reproj_error, min_shared_points=min_shared_points,
                          min_distance_bw_frames=min_distance_bw_frames,  logger=logger)
-            if subset_strategy == "random":
+            if random_subset:
                 # Randomly select a subset of pairs
                 original_size = len(pairs)
                 pairs = select_random_subset_of_pairs(pairs, random_subset_size)
@@ -230,7 +230,8 @@ def main_loop():
                     covis_score = pair_data["covis_score"]
                     parallax = pair_data["median_parallax"]
                     reprojection_errors = pair_data["reprojection_errors"]
-
+                    
+                    #FIX colon: need to add the progress when penalizing with low inliers, len(pair_metrics) doesnt grow
                     # Create a terminal progress bar
                     progress_bar(logger, len(pair_metrics), len(pairs), img0_path, img1_path)
 
@@ -254,7 +255,8 @@ def main_loop():
                     
                     # Get relative pose from matcher
                     result_matcher, R01_est, t01_est, extractor_time, filter_time, match_time = get_relative_pose_from_matcher(
-                        img0_path, img1_path, camera0, camera1, output_submap_dir, model_name, matcher, logger=logger, resize=resize, masking=masking, plot_kpts=plot_kpts, min_matches_for_pose=min_matches_for_pose
+                        img0_path, img1_path, camera0, camera1, output_submap_dir, model_name, matcher, logger=logger, resize=resize,
+                          masking=masking, plot_kpts=plot_kpts, min_matches_for_pose=min_matches_for_pose, min_inliers_for_pose=min_inliers_for_pose
                     )
 
                     if result_matcher is None or R01_est is None or t01_est is None:
@@ -302,9 +304,9 @@ def main_loop():
                         "t01_est": t01_est,
                         "R01_colmap": R01_colmap,
                         "t01_colmap": t01_colmap,
-                        "mean_reprojection_error": np.mean(reprojection_errors),
-                        "std_reprojection_error": np.std(reprojection_errors),
-                        "median_reprojection_error": np.median(reprojection_errors),
+                        "mean_reprojection_error": np.mean(reprojection_errors),     # Post-filtering
+                        "std_reprojection_error": np.std(reprojection_errors),          # Post-filtering   
+                        "median_reprojection_error": np.median(reprojection_errors),    # Post-filtering
                         "distance_bw_frames": pair_data["distance_bw_frames"],
                     }
 

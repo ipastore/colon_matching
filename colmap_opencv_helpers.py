@@ -552,7 +552,8 @@ def get_relative_pose_from_colmap(image0, image1):
 def get_relative_pose_from_matcher(img0_path, img1_path, camera0, camera1,
                                     output_submap_dir, model_name,
                                     matcher, logger=None, resize=None, masking=False,
-                                    plot_kpts=False, min_matches_for_pose=5):
+                                    plot_kpts=False, min_matches_for_pose=5,
+                                    min_inliers_for_pose=5):
     
     #Match images and get the result
     result_matcher, img0, img1, masked_img0, masked_img1 = match_image_pairs(
@@ -567,7 +568,7 @@ def get_relative_pose_from_matcher(img0_path, img1_path, camera0, camera1,
 
     # Instead of skipping, add a high penalty error for pairs with too few matches
     if result_matcher is None or len(result_matcher['matched_kpts0']) < min_matches_for_pose:
-        logger.warning(f"Not enough matches found or result_matcher is None for {img0_path.stem} and {img1_path.stem}. Adding penalty error values.")
+        logger.warning(f"Not enough matches found for {img0_path.stem} and {img1_path.stem}. Adding penalty error values.")
         return None, None, None, None, None, None
 
     # Extract sub-step times from the result_matcher
@@ -587,7 +588,6 @@ def get_relative_pose_from_matcher(img0_path, img1_path, camera0, camera1,
     # estimation_options = pycolmap.RANSACOptions()
     result_colmap = pycolmap.estimate_essential_matrix(corrected_mkpts0, corrected_mkpts1, camera0, camera1)
 
-    #TODO: Add penalty for inliers less than min_inliers_for_pose
     # Similarly for essential matrix estimation failure, add penalty instead of skipping
     if result_colmap is None:
         logger.warning(f"Not enough inliers for {img0_path.stem} and {img1_path.stem}. Adding penalty error values.")
@@ -604,6 +604,12 @@ def get_relative_pose_from_matcher(img0_path, img1_path, camera0, camera1,
     result_matcher['inlier_kpts0'] = result_matcher['matched_kpts0'][inlier_mask]
     result_matcher['inlier_kpts1'] = result_matcher['matched_kpts1'][inlier_mask]
     result_matcher['num_inliers'] = len(result_matcher['inlier_kpts0'])
+
+    if result_matcher['num_inliers'] < min_inliers_for_pose:
+        logger.warning(f"Not enough inliers for {img0_path.stem} and {img1_path.stem}. Adding penalty error values.")
+        del result_colmap, corrected_mkpts0, corrected_mkpts1, mkpts0, mkpts1, matcher
+        gc.collect()
+        return None, None, None, None, None, None
 
     if masking:
         start_plotting = time.perf_counter()

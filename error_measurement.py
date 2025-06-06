@@ -82,13 +82,11 @@ ransac_kwargs = {
     'ransac_iters': 0
 }
 ############################# Seq #############################
-seq = "seq_001"
+# seq = "seq_001"
 # seq = "graham-hall_toy"
+seq = "seq_001_toy"
 # seq = "seq_001_v2"
 seq_dir = Path(f'data/{seq}')
-############################# Subsample #############################
-subsample = 1 # for subsampling the img_train list
-min_images_afer_subsampling = 2 # for skipping submaps with too few images after subsampling
 ############################# Covisibility #############################|
 covisibility_threshold = 0.0 # for filtering image pairs (easy, medium, hard)
 min_shared_points = 15 # for filtering image pairs
@@ -97,7 +95,7 @@ max_reproj_error = 2.0 # for filtering image pairs
 ############################ Parallax #############################
 min_parallax = 4 # for robust estimation of relative pose (degrees)
 ############################# Min Pairs for submap #############################
-min_pairs_for_submap = 5 # for skipping submaps with too few pairs
+min_pairs_for_submap = 2 # for skipping submaps with too few pairs
 ############################# Min Matches for pose estimation #############################
 min_matches_for_pose = 50 # for skipping pairs with too few matches
 min_inliers_for_pose = 50 # for skipping pairs with too few inliers
@@ -105,12 +103,12 @@ min_inliers_for_pose = 50 # for skipping pairs with too few inliers
 thresholds_r = np.array([1,3,5,10,20]) 
 thresholds_t = np.array([5,10,15,20,30])
 ############################# Thresholds #############################
-# pair_images_strategy = "greedy_sequential" # for filtering image pairs
-pair_images_strategy = "exhaustive" # for filtering image pairs
-random_subset = True # uses exhaustive filtering and then choosing a randome subset of pairs
-random_subset_size = 1000
+pair_images_strategy = "greedy_sequential" # for filtering image pairs
+# pair_images_strategy = "exhaustive" # for filtering image pairs
+random_subset = False # uses exhaustive filtering and then choosing a randome subset of pairs
+random_subset_size = 50
 ############################### Min distance between frames #############################
-min_distance_bw_frames = 5 
+min_distance_bw_frames = 1 
 
 def main_loop():
     
@@ -134,8 +132,8 @@ def main_loop():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # Iterate over all the submaps in the sequence
-    # for submap in submaps:
-    for submap in [submaps[6], submaps[9]]:               ######################### USING JUST SOME SUBMAPS ########################
+    for submap in submaps:
+    # for submap in [submaps[6], submaps[9]]:               ######################### USING JUST SOME SUBMAPS ########################
         
         logger.info(f"Starting submap: {submap}")
         # Define the paths for the submap model and the source of images of the mode
@@ -144,32 +142,30 @@ def main_loop():
         # Load the COLMAP reconstruction for the submap
         reconstruction = pycolmap.Reconstruction(str(sparse_model_dir))
 
-        # Get p3d error for submap pre filtering[]
+        # Get p3d error for submap pre filtering[]. Used for reporting purposes
         submap_p3d_errors_pre_filter = [p3d.error for p3d in reconstruction.points3D.values()]
 
         #Get image pairs for the submap
-        images = list(Path(f'data/{seq}/sub_maps_images/{submap}').glob('*.png')) + \
-                list(Path(f'data/{seq}/img_train/exterior').glob('*.jpg')) + \
-                list(Path(f'data/{seq}/img_train/exterior').glob('*.JPG')) + \
-                list(Path(f'data/{seq}/img_train/interior').glob('*.jpg')) + \
-                list(Path(f'data/{seq}/img_train/interior').glob('*.JPG')) 
-                                                           
-        # Subsample the images list to avoid memory issues
-        images = images[::subsample]
-        debug_log(logger, "error_measurement", f"{submap} subsampled by {subsample} has {len(images)} images")
+        images = list(Path(f'data/{seq}/sub_maps_images/{submap}').glob('*.png')) 
         
-        if len(images) < min_images_afer_subsampling:
-            logger.info(f"Skipping submap {submap} because it has less than {min_images_afer_subsampling} images after subsampling")
-            continue
-        
+        ########################## HARDCODE for Graham Hall dataset ##########################
+        # + \
+        #         list(Path(f'data/{seq}/img_train/exterior').glob('*.jpg')) + \
+        #         list(Path(f'data/{seq}/img_train/exterior').glob('*.JPG')) + \
+        #         list(Path(f'data/{seq}/img_train/interior').glob('*.jpg')) + \
+        #         list(Path(f'data/{seq}/img_train/interior').glob('*.JPG')) 
+        ########################## HARDCODE for Graham Hall dataset ##########################
+
+        # Load previously generated covisibility graph (generate_cameras_model.py)                                       
         covisibility_path = sparse_model_dir / "camerasModel.txt"
         covisibility_graph = load_covisibility_graph(covisibility_path)
         # Sort images to ensure they're in sequential order
         images.sort(key=lambda x: x.name)
 
+        # Choose between exhaustive or greedy sequential pair selection. 
         if pair_images_strategy == "exhaustive":
             # All with all, passing the filters (covisibility_graph, min_parallax)
-            pairs, submap_p3d_errors = filter_image_pairs(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
+            pairs = filter_image_pairs(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
                                     max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, 
                                     min_distance_bw_frames=min_distance_bw_frames, logger=logger)
             if random_subset:
@@ -180,7 +176,7 @@ def main_loop():
 
         elif pair_images_strategy == "greedy_sequential":
             # Take pair of images that first sastisfy the filters (covisibility_graph, min_parallax)
-            pairs, submap_p3d_errors = filter_image_pairs_greedy_sequential(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
+            pairs = filter_image_pairs_greedy_sequential(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
                         max_reproj_error=max_reproj_error, min_shared_points=min_shared_points,
                          min_distance_bw_frames=min_distance_bw_frames,  logger=logger)
             if random_subset:
@@ -276,11 +272,10 @@ def main_loop():
                     debug_log(logger, "error_measurement",f"inliers: {result_matcher['num_inliers']}")
                     debug_log(logger, "error_measurement",f"matches: {len(result_matcher['matched_kpts0'])}")
 
-                    # TODO colon: change this to append it in the pair_info dict?
+                    # Append errors to submap lists, for reporting purposes
                     submap_rot_errs.append(rot_err)
                     submap_trans_errs.append(trans_err_deg)
 
-                    # TODO colon: add whatever I added in the npz to have a unified format
                     # Build a dictionary for this pair
                     pair_info = {
                         "image0": img0_name,
@@ -304,9 +299,10 @@ def main_loop():
                         "t01_est": t01_est,
                         "R01_colmap": R01_colmap,
                         "t01_colmap": t01_colmap,
-                        "mean_reprojection_error": np.mean(reprojection_errors),     # Post-filtering
-                        "std_reprojection_error": np.std(reprojection_errors),          # Post-filtering   
-                        "median_reprojection_error": np.median(reprojection_errors),    # Post-filtering
+                        "mean_reprojection_error": np.mean(reprojection_errors),   
+                        "std_reprojection_error": np.std(reprojection_errors),            
+                        "median_reprojection_error": np.median(reprojection_errors),
+                        "n_3d_colmap_points": len(reprojection_errors),    
                         "distance_bw_frames": pair_data["distance_bw_frames"],
                     }
 
@@ -314,19 +310,6 @@ def main_loop():
 
                     # Add pair of images to registered images set
                     registered_images.append((img0_name, img1_name))
-
-                    # # TODO colon: change this structure to saving previously in pair_info
-                    # # Save the result of the matcher in hard disk
-                    # save_result_matcher_npz(
-                    #     output_submap_dir,
-                    #     model_name,
-                    #     result_matcher,
-                    #     img0_name,
-                    #     img1_name,
-                    #     R01_est,
-                    #     t01_est, 
-                    #     parallax,
-                    # )
                                     
                     del result_matcher, R01_est, t01_est, R01_colmap, t01_colmap, image0, image1, camera0, camera1, pair_info
                     gc.collect()
@@ -347,7 +330,6 @@ def main_loop():
                     "resize": resize,
                     "masking": masking,
                     "matcher_params": matcher_kwargs,
-                    "subsampling": subsample,
                     "thresholds_r": thresholds_r.tolist(),
                     "thresholds_t": thresholds_t.tolist(),
                     "extractor_config": matcher.extractor.conf,
@@ -357,9 +339,6 @@ def main_loop():
                     "submap_p3d_errors_pre_filter": submap_p3d_errors_pre_filter,
                     "mean_submap_p3d_error_pre_filter": np.mean(submap_p3d_errors_pre_filter),
                     "median_submap_p3d_error_pre_filter": np.median(submap_p3d_errors_pre_filter),
-                    "submap_p3d_errors": submap_p3d_errors,
-                    "mean_submap_p3d_error": np.mean(submap_p3d_errors),
-                    "median_submap_p3d_error": np.median(submap_p3d_errors),
                     "model_name": model_name,
                     "timestamp": timestamp,
                     "report_status": "complete",
@@ -400,7 +379,6 @@ def main_loop():
                         "resize": resize,
                         "masking": masking,
                         "matcher_params": matcher_kwargs,
-                        "subsampling": subsample,
                         "thresholds_r": thresholds_r.tolist(),
                         "thresholds_t": thresholds_t.tolist(),
                         "extractor_config": matcher.extractor.conf,
@@ -410,9 +388,6 @@ def main_loop():
                         "submap_p3d_errors_pre_filter": submap_p3d_errors_pre_filter,
                         "mean_submap_p3d_error_pre_filter": np.mean(submap_p3d_errors_pre_filter),
                         "median_submap_p3d_error_pre_filter": np.median(submap_p3d_errors_pre_filter),
-                        "submap_p3d_errors": submap_p3d_errors,
-                        "mean_submap_p3d_error": np.mean(submap_p3d_errors),
-                        "median_submap_p3d_error": np.median(submap_p3d_errors),
                         "model_name": model_name,
                         "timestamp": timestamp,
                         "report_status": "interrupted",

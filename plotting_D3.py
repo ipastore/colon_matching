@@ -5,15 +5,14 @@ from pathlib import Path
 import numpy as np
 
 # En tu caso, ajusta la ruta según corresponda
-timestamp_name = '20250603_155724'
-output_dir = Path(f'./output/plot_images/plotly/{timestamp_name}')
+timestamp_name = '20250606_205725'
+output_dir = Path(f'./output/plot_images/D3/{timestamp_name}')
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # ------------------------------------------------------------------
 # 1) Load JSON files from submaps directory
 # ------------------------------------------------------------------
-submaps_dir = Path('./output/error_measurement/seq_001/superpoint-lg/20250603_155724/submaps')
-
+submaps_dir = Path('./output/error_measurement/seq_001_toy/superpoint-lg/20250606_205725/submaps')
 # Find all submap JSON files
 submap_files = list(submaps_dir.glob(f"submap_*.json"))
 
@@ -46,10 +45,6 @@ for submap_file in submap_files:
         median_submap_p3d_error_pre_filter = submap_report.get("metadata").get("median_submap_p3d_error_pre_filter", None)
 
         for pair in pairs:
-            # if pair["parallax"] < 3 or pair["inliers"] < 50 or pair["t_colmap_norm"] < 0.5:
-
-            #     continue
-
             mkpts = pair.get("mkpts", None)
 
             row = {
@@ -72,6 +67,8 @@ for submap_file in submap_files:
                 "mean_submap_p3d_error_pre_filter": mean_submap_p3d_error_pre_filter,
                 "median_submap_p3d_error_pre_filter": median_submap_p3d_error_pre_filter,
                 "distance_bw_frames": pair["distance_bw_frames"],
+                "n_3d_colmap_points": pair["n_3d_colmap_points"],
+
             }
             records.append(row)
 

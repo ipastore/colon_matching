@@ -289,9 +289,6 @@ def filter_image_pairs_greedy_sequential(
     #TODO colon: check if it is necessary to filter the 3D points. To by pass, set parameters to 0
     valid_points = filter_3D_points(reconstruction, min_track_len, max_reproj_error)
     
-    # Get error of all the 3D valid points
-    p3d_errors = [reconstruction.points3D[p3d_id].error for p3d_id in valid_points]
-
     i = 0
     # Greedy forward matching of pairs
     while i < len(images):
@@ -398,7 +395,7 @@ def filter_image_pairs_greedy_sequential(
     debug_log(logger, 'filter_image_pairs', f"{len(images)} initial images")
     debug_log(logger, 'filter_image_pairs', f"{len(final_pairs)} pairs passed all filters")
     
-    return final_pairs, p3d_errors
+    return final_pairs
 
 #TODO: colon add metric for getting the mean and median of the reprojection error of all the 3D shared points
 def filter_image_pairs(
@@ -434,9 +431,6 @@ def filter_image_pairs(
 
     # Filter 3D points based on track length and reprojection error
     valid_points = filter_3D_points(reconstruction, min_track_len, max_reproj_error)
-
-    # Get error of all the 3D valid points
-    p3d_errors = [reconstruction.points3D[p3d_id].error for p3d_id in valid_points]
 
     # Exhaustive matching: check all possible pairs
     for i in range(len(images)):
@@ -474,6 +468,7 @@ def filter_image_pairs(
             pointsB_valid = pointsB.intersection(valid_points)
                 
             shared_points = pointsA_valid.intersection(pointsB_valid)
+            
             n_shared = len(shared_points)
             
             if n_shared < min_shared_points:
@@ -535,7 +530,7 @@ def filter_image_pairs(
     debug_log(logger, 'filter_image_pairs', f"{len(images)} initial images")
     debug_log(logger, 'filter_image_pairs', f"{len(final_pairs)} pairs passed all filters")
     
-    return final_pairs, p3d_errors
+    return final_pairs
 
 def get_relative_pose_from_colmap(image0, image1):
     """Get relative pose between two images from a COLMAP reconstruction"""

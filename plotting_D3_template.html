@@ -190,7 +190,7 @@ function updatePlots() {
     }
     boxPlot('rot_error', 'Rotation Error by Submap', 'boxplot_rot');
     boxPlot('trans_error_deg', 'Translation Error by Submap', 'boxplot_trans');
-    boxPlot('mean_submap_p3d_error_pre_filter', 'P3D Errors by Submap', 'boxplot_p3d_errors', "none");
+    // boxPlot('submap_p3d_errors_pre_filter', 'P3D Errors by Submap', 'boxplot_p3d_errors', "none");
 
     function scatterPlot(xField, yField, title, divId) {
         const xMax = Math.max(...data.map(d => d[xField])) * 1.05;

@@ -5,14 +5,14 @@ from pathlib import Path
 import numpy as np
 
 # En tu caso, ajusta la ruta según corresponda
-timestamp_name = '20250606_205725'
+timestamp_name = '20250513_210936'
 output_dir = Path(f'./output/plot_images/D3/{timestamp_name}')
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # ------------------------------------------------------------------
 # 1) Load JSON files from submaps directory
 # ------------------------------------------------------------------
-submaps_dir = Path('./output/error_measurement/seq_001_toy/superpoint-lg/20250606_205725/submaps')
+submaps_dir = Path('./output/error_measurement/seq_001/sift-nn/20250513_210936/submaps')
 # Find all submap JSON files
 submap_files = list(submaps_dir.glob(f"submap_*.json"))
 
@@ -43,6 +43,7 @@ for submap_file in submap_files:
         nimg_percentage = submap_report.get("submap_data").get("results", None).get("Nimg_percentage",None)
         mean_submap_p3d_error_pre_filter = submap_report.get("metadata").get("mean_submap_p3d_error_pre_filter", None)
         median_submap_p3d_error_pre_filter = submap_report.get("metadata").get("median_submap_p3d_error_pre_filter", None)
+        submap_p3d_errors_pre_filter = submap_report.get("metadata").get("submap_p3d_errors_pre_filter", None)
 
         for pair in pairs:
             mkpts = pair.get("mkpts", None)
@@ -67,7 +68,8 @@ for submap_file in submap_files:
                 "mean_submap_p3d_error_pre_filter": mean_submap_p3d_error_pre_filter,
                 "median_submap_p3d_error_pre_filter": median_submap_p3d_error_pre_filter,
                 "distance_bw_frames": pair["distance_bw_frames"],
-                "n_3d_colmap_points": pair["n_3d_colmap_points"],
+                "n_3d_colmap_points": pair["n_3d_colmap_points"] if "n_3d_colmap_points" in pair else None,
+                # "submap_p3d_errors_pre_filter": submap_p3d_errors_pre_filter,
 
             }
             records.append(row)

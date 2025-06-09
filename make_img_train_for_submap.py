@@ -12,7 +12,7 @@ def copy_submap_images(
     For each submap text file in 'data/{seq_name}/cluster_list/',
     read the text file that lists the images (e.g. "0.txt", "1.txt", etc.),
     then copy them from 'image_train_root' into a corresponding folder under
-    'output_root/sub_maps_images/'.
+    'output_root/submap_images/'.
 
     Args:
         seq_name (str): Name of the sequence folder (e.g. "seq_001")
@@ -29,9 +29,9 @@ def copy_submap_images(
     if not cluster_list_dir.exists():
         raise FileNotFoundError(f"Cluster list directory not found: {cluster_list_dir}")
     
-    # Create the output sub_maps_images directory
-    sub_maps_images_dir = output_root / "sub_maps_images"
-    sub_maps_images_dir.mkdir(parents=True, exist_ok=True)
+    # Create the output submap_images directory
+    submap_images_dir = output_root / "submap_images"
+    submap_images_dir.mkdir(parents=True, exist_ok=True)
 
     # Process all text files in the cluster list directory
     for cluster_file in sorted(cluster_list_dir.glob(f"*{image_list_suffix}")):
@@ -42,7 +42,7 @@ def copy_submap_images(
             image_names = [line.strip() for line in f if line.strip()]
 
         # Create an output folder for this submap
-        submap_output_dir = sub_maps_images_dir / submap_name
+        submap_output_dir = submap_images_dir / submap_name
         submap_output_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy each image from image_train_root to submap_output_dir
@@ -74,11 +74,11 @@ if __name__ == "__main__":
     #   │    └── ...
     #   └── ...
     #
-    # And you want to create "output_root/sub_maps_images/" with all the images.
+    # And you want to create "output_root/submap_images/" with all the images.
     
-    seq_name = "seq_001"                      # Sequence name
-    image_train_dir = Path("data/seq_001/img_train")  # Where all your original images are
-    output_dir = Path(f"data/{seq_name}")              # Where to create sub_maps_images directory
+    seq_name = "seq_002"                      # Sequence name
+    image_train_dir = Path("data/seq_002/img_train")  # Where all your original images are
+    output_dir = Path(f"data/{seq_name}")              # Where to create submap_images directory
     
     copy_submap_images(
         seq_name=seq_name,

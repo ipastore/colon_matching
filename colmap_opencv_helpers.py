@@ -13,6 +13,7 @@ from pathlib import Path
 import json
 import random
 import os
+import warnings
 
 def get_device_info(device):
     """Get device information similar to nvidia-smi."""
@@ -254,7 +255,7 @@ def filter_3D_points(reconstruction, min_track_len, max_reproj_error):
             valid_points.add(p3d_id)
     return valid_points
 
-#TODO colon: adapt to graham-hall dataset
+
 def filter_image_pairs_greedy_sequential(
     images,
     reconstruction,
@@ -369,9 +370,10 @@ def filter_image_pairs_greedy_sequential(
             # Report the reprojection error for the pair with the original 3D points
             shared_points_pre_filtering = pointsA.intersection(pointsB)
             
-            reprojection_errors = [
-                reconstruction.points3D[pid].error for pid in shared_points_pre_filtering
-            ]
+            # Get reprojection errors for the shared points in both images
+            reprojection_errors = get_pair_reprojection_errors(
+                reconstruction, imageA, imageB, shared_points_pre_filtering
+            )
             
             final_pairs.append({
                 "img0": img0,
@@ -397,8 +399,7 @@ def filter_image_pairs_greedy_sequential(
     
     return final_pairs
 
-#TODO: colon add metric for getting the mean and median of the reprojection error of all the 3D shared points
-def filter_image_pairs(
+def filter_image_pairs_exhaustive(
     images,
     reconstruction,
     covisibility_graph,
@@ -511,10 +512,11 @@ def filter_image_pairs(
             # Report the reprojection error for the pair with the original 3D points
             shared_points_pre_filtering = pointsA.intersection(pointsB)
             
-            reprojection_errors = [
-                reconstruction.points3D[pid].error for pid in shared_points_pre_filtering
-            ]
-       
+            # Get reprojection errors for the shared points in both images
+            reprojection_errors = get_pair_reprojection_errors(
+                reconstruction, imageA, imageB, shared_points_pre_filtering
+            )
+
             # This pair passed all filters, add to final pairs
             final_pairs.append({
                 "img0": img0,
@@ -529,6 +531,107 @@ def filter_image_pairs(
 
     debug_log(logger, 'filter_image_pairs', f"{len(images)} initial images")
     debug_log(logger, 'filter_image_pairs', f"{len(final_pairs)} pairs passed all filters")
+    
+    return final_pairs
+
+def filter_image_pairs(
+    images,
+    reconstruction,
+    covisibility_graph,
+    cache_file=None,
+    force_recompute=False,
+    min_parallax=0.0,
+    covisibility_threshold=0.0,
+    min_track_len=3,
+    max_reproj_error=2.0,
+    min_shared_points=15,
+    min_distance_bw_frames=0,
+    pair_images_strategy='exhaustive', # 'exhaustive' or 'greedy_sequential'
+    random_subset=True,
+    random_subset_size=50,
+    logger=None
+):
+    """Filter image pairs with caching capability"""
+    
+    # Check if cache exists and should be used
+    if cache_file and os.path.exists(cache_file) and not force_recompute:
+        debug_log(logger, 'filter_image_pairs', f"Loading filtered pairs from cache: {cache_file}")
+        with open(cache_file, 'r') as f:
+            cached_data = json.load(f)
+            
+        # Convert cached data back to the right format
+        final_pairs = []
+        for pair_data in cached_data:
+            # Convert paths back to Path objects
+            pair_data["img0"] = Path(pair_data["img0"])
+            pair_data["img1"] = Path(pair_data["img1"])
+            pair_data["shared_points"] = int(pair_data["shared_points"])
+            pair_data["covis_score"] = float(pair_data["covis_score"])
+            pair_data["median_parallax"] = float(pair_data["median_parallax"])
+            pair_data["reprojection_errors"] = pair_data["reprojection_errors"] 
+            pair_data["distance_bw_frames"] = float(pair_data["distance_bw_frames"])
+            final_pairs.append(pair_data)
+
+    elif pair_images_strategy == 'exhaustive':
+        # Use exhaustive matching to filter pairs
+        debug_log(logger, 'filter_image_pairs', "Using exhaustive matching strategy")
+        final_pairs = filter_image_pairs_exhaustive(
+            images, reconstruction, covisibility_graph,
+            min_parallax=min_parallax,
+            covisibility_threshold=covisibility_threshold,
+            min_track_len=min_track_len,
+            max_reproj_error=max_reproj_error,
+            min_shared_points=min_shared_points,
+            min_distance_bw_frames=min_distance_bw_frames,
+            logger=logger
+        )
+    elif pair_images_strategy == 'greedy_sequential':
+        # Use greedy sequential matching to filter pairs
+        debug_log(logger, 'filter_image_pairs', "Using greedy sequential matching strategy")
+        final_pairs = filter_image_pairs_greedy_sequential(
+            images, reconstruction, covisibility_graph,
+            min_parallax=min_parallax,
+            covisibility_threshold=covisibility_threshold,
+            min_track_len=min_track_len,
+            max_reproj_error=max_reproj_error,
+            min_shared_points=min_shared_points,
+            min_distance_bw_frames=min_distance_bw_frames,
+            logger=logger
+        )
+    else:
+        raise ValueError(f"Unknown pair_images_strategy: {pair_images_strategy}. Use 'exhaustive' or 'greedy_sequential'.")
+    
+    # Save to cache if specified
+    if cache_file and not os.path.exists(cache_file):
+        # Convert to serializable format
+        serializable_pairs = []
+        for pair in final_pairs:
+            serializable_pair = pair.copy()
+            serializable_pair["img0"] = str(pair["img0"])
+            serializable_pair["img1"] = str(pair["img1"])
+            serializable_pair["shared_points"] = int(pair["shared_points"])
+            serializable_pair["covis_score"] = float(pair["covis_score"])
+            serializable_pair["median_parallax"] = float(pair["median_parallax"])
+            serializable_pair["reprojection_errors"] = serializable_pair["reprojection_errors"]
+            serializable_pair["distance_bw_frames"] = float(pair["distance_bw_frames"])
+            serializable_pairs.append(serializable_pair)
+            
+        debug_log(logger, 'filter_image_pairs', f"Saving {len(final_pairs)} pairs to cache: {cache_file}")
+        os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+        with open(cache_file, 'w') as f:
+            json.dump(serializable_pairs, f, indent=2)
+
+    
+    if random_subset and len(final_pairs) >= random_subset_size:
+        # Randomly select a subset of pairs if specified
+        debug_log(logger, 'filter_image_pairs', f"Selecting random subset of {random_subset_size} pairs from {len(final_pairs)} total pairs")
+        final_pairs = random.sample(final_pairs, random_subset_size)
+    elif random_subset and len(final_pairs) < random_subset_size:
+        # If not enough pairs, use all available pairs
+        logger.warning(f"Random subset not applied. Using all {len(final_pairs)} pairs.")
+    else:
+        debug_log(logger, 'filter_image_pairs', f"Using all {len(final_pairs)} pairs without random selection")
+    debug_log(logger, 'filter_image_pairs', f"Final pairs count: {len(final_pairs)}")
     
     return final_pairs
 
@@ -724,10 +827,53 @@ def set_all_seeds(seed):
 
 def select_random_subset_of_pairs(pairs, random_subset_size):
 
-    random_subset_size = min(random_subset_size, len(pairs))
     indices = np.random.choice(len(pairs), random_subset_size, replace=False)
     random_pairs = [pairs[i] for i in indices]
-
     
     return random_pairs
 
+def get_pair_reprojection_errors(reconstruction, imageA, imageB, shared_points):
+    """
+    Get the reprojection errors of 3D points shared between two images.
+    """
+    reprojection_errors = []
+    
+    # Create lookup dictionaries to avoid scanning tracks for each point
+    point2D_A_lookup = {}
+    point2D_B_lookup = {}
+    
+    # Pre-populate lookups
+    for point3D_id in shared_points:
+        point3D = reconstruction.points3D[point3D_id]
+        for track_el in point3D.track.elements:
+            if track_el.image_id == imageA.image_id:
+                point2D_A_lookup[point3D_id] = imageA.points2D[track_el.point2D_idx]
+            elif track_el.image_id == imageB.image_id:
+                point2D_B_lookup[point3D_id] = imageB.points2D[track_el.point2D_idx]
+    
+    # Get cameras
+    cameraA = reconstruction.cameras[imageA.camera_id]
+    cameraB = reconstruction.cameras[imageB.camera_id]
+    
+    # Process all points
+    for point3D_id in shared_points:
+        if point3D_id in point2D_A_lookup and point3D_id in point2D_B_lookup:
+            point3D = reconstruction.points3D[point3D_id]
+            point2D_A = point2D_A_lookup[point3D_id]
+            point2D_B = point2D_B_lookup[point3D_id]
+            
+            # Project and calculate errors
+            point3D_camA = imageA.cam_from_world * point3D.xyz
+            point3D_camB = imageB.cam_from_world * point3D.xyz
+
+            # Normalize homogeneous coordinates
+            proj_A = cameraA.img_from_cam(point3D_camA)
+            proj_B = cameraB.img_from_cam(point3D_camB)
+            
+            error_A = np.linalg.norm(proj_A - point2D_A.xy)
+            error_B = np.linalg.norm(proj_B - point2D_B.xy)
+            
+            rms_error = np.sqrt((error_A**2 + error_B**2) / 2)
+            reprojection_errors.append(rms_error)
+    
+    return reprojection_errors

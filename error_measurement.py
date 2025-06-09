@@ -43,9 +43,8 @@ activated_debug_flags = {"filter_image_pairs","error_measurement"}
 # models = ["superpoint-lg"]
 models = ["roma"]
 # models = ["sift-nn", "gim-lg", "tiny-roma", "sift-lg", "superpoint-lg", "roma"]
-############################# CHOOSE IMAGE DIRECTORY #############################
-# image_dir = Path(f'data')
 ############################# RESIZE #############################
+#FIX colon: This resize does not preserv aspect ratio
 # resize = 512
 resize = None
 ############################# MASK #############################
@@ -53,23 +52,22 @@ resize = None
 masking = True
 ############################# Key Points #############################
 plot_kpts = True
-
 ############################# Matcher Hyperparameters #############################
 # Parameters for SuperPoint extractor and LightGlue matcher
 matcher_kwargs = {
 ############################### SuperPoint #############################
-    'detection_threshold': 0.005,  # SuperPoint keypoint detection threshold
-    'max_superpoint_keypoints': 1024,     # Maximum number of keypoints to detect
+    'detection_threshold': 0.005,  # SuperPoint keypoint detection threshold. Default 0.005
+    'max_superpoint_keypoints': 1024,     # Maximum number of keypoints to detect. Default 1024
 ############################### LightGlue (with superpoint, check if using with another detector, should modify the matcher class) #############################
-    'filter_threshold': 0.1 ,       # LightGlue matching threshold
+    'filter_threshold': 0.1 ,       # LightGlue matching threshold. Default 0.1
     "depth_confidence": -1,        # early stopping, disable with -1 / 0.95
     "width_confidence": -1,          # point pruning, disable with -1 / 0.99
 ############################### SIFT #############################
-    'lowe_thresh': 0.85,          # Lowe's ratio test threshold
-    'max_sift_keypoints': 2048,    # Maximum number of keypoints to detect
-    'contrast_threshold': 0.02,   # SIFT contrast threshold
-    'edge_threshold': 15,         # SIFT edge threshold
-    'n_octave_layers': 4,         # SIFT number of octave layers
+    'lowe_thresh': 0.75,          # Lowe's ratio test threshold
+    'max_sift_keypoints': 5000,    # Maximum number of keypoints to detect
+    'contrast_threshold': 0.00025,   # SIFT contrast threshold. Rauls 0.00067. Default 0.02
+    'edge_threshold': 100,         # SIFT edge threshold. Rauls 50. Default 15
+    'n_octave_layers': 8,         # SIFT number of octave layers
 ############################### KNN (SIFT) #############################
     # TODO colon: if we want to upgrade these parameter, some logic in the matcher should be changed. Right now it's hardcoded to 2
     'k_neighbors': 2,             # Number of nearest neighbors to consider for matching. BUT, I think it would not be useful to improve matching.
@@ -94,8 +92,9 @@ ransac_kwargs = {
 ############################# Seq #############################
 # seq = "seq_001"
 # seq = "graham-hall_toy"
-seq = "seq_001_toy"
-# seq = "seq_001_v2"
+# seq = "seq_001_toy"
+seq = "seq_001_v2"
+# seq = "seq_001_002"
 seq_dir = Path(f'data/{seq}')
 ############################# Covisibility #############################|
 covisibility_threshold = 0.0 # for filtering image pairs (easy, medium, hard)
@@ -105,20 +104,20 @@ max_reproj_error = 2.0 # for filtering image pairs
 ############################ Parallax #############################
 min_parallax = 4 # for robust estimation of relative pose (degrees)
 ############################# Min Pairs for submap #############################
-min_pairs_for_submap = 2 # for skipping submaps with too few pairs
+min_pairs_for_submap = 50 # for skipping submaps with too few pairs
 ############################# Min Matches for pose estimation #############################
-min_matches_for_pose = 50 # for skipping pairs with too few matches
-min_inliers_for_pose = 50 # for skipping pairs with too few inliers
+min_matches_for_pose = 5 # for skipping pairs with too few matches
+min_inliers_for_pose = 5 # for skipping pairs with too few inliers
 ############################# Thresholds #############################
 thresholds_r = np.array([1,3,5,10,20]) 
 thresholds_t = np.array([5,10,15,20,30])
 ############################# Thresholds #############################
-pair_images_strategy = "greedy_sequential" # for filtering image pairs
-# pair_images_strategy = "exhaustive" # for filtering image pairs
-random_subset = False # uses exhaustive filtering and then choosing a randome subset of pairs
+# pair_images_strategy = "greedy_sequential" # for filtering image pairs
+pair_images_strategy = "exhaustive" # for filtering image pairs
+random_subset = False # for selecting a random subset of pairs after filtering
 random_subset_size = 50
-############################### Min distance between frames #############################
-min_distance_bw_frames = 1 
+############################## Min distance between frames #############################
+min_distance_bw_frames = 5
 
 def main_loop():
     
@@ -144,6 +143,7 @@ def main_loop():
     # Iterate over all the submaps in the sequence
     for submap in submaps:
     # for submap in [submaps[6], submaps[9]]:               ######################### USING JUST SOME SUBMAPS ########################
+
         
         logger.info(f"Starting submap: {submap}")
         # Define the paths for the submap model and the source of images of the mode
@@ -156,7 +156,7 @@ def main_loop():
         submap_p3d_errors_pre_filter = [p3d.error for p3d in reconstruction.points3D.values()]
 
         #Get image pairs for the submap
-        images = list(Path(f'data/{seq}/sub_maps_images/{submap}').glob('*.png')) 
+        images = list(Path(f'data/{seq}/submap_images/{submap}').glob('*.png')) 
         
         ########################## HARDCODE for Graham Hall dataset ##########################
         # + \
@@ -172,32 +172,31 @@ def main_loop():
         # Sort images to ensure they're in sequential order
         images.sort(key=lambda x: x.name)
 
-        # Choose between exhaustive or greedy sequential pair selection. 
-        if pair_images_strategy == "exhaustive":
-            # All with all, passing the filters (covisibility_graph, min_parallax)
-            pairs = filter_image_pairs(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
-                                    max_reproj_error=max_reproj_error, min_shared_points=min_shared_points, 
-                                    min_distance_bw_frames=min_distance_bw_frames, logger=logger)
-            if random_subset:
-                # Randomly select a subset of pairs
-                original_size = len(pairs)
-                pairs = select_random_subset_of_pairs(pairs, random_subset_size)
-                debug_log(logger, "filter_image_pairs", f"Selected random subset of {len(pairs)} pairs from {original_size} total pairs.")
+        # Define a cache file path based on your parameters
+        cache_dir = Path(f"cache/{submap}/{pair_images_strategy}")
 
-        elif pair_images_strategy == "greedy_sequential":
-            # Take pair of images that first sastisfy the filters (covisibility_graph, min_parallax)
-            pairs = filter_image_pairs_greedy_sequential(images, reconstruction, covisibility_graph, min_parallax=min_parallax ,covisibility_threshold = covisibility_threshold, min_track_len=min_track_len,
-                        max_reproj_error=max_reproj_error, min_shared_points=min_shared_points,
-                         min_distance_bw_frames=min_distance_bw_frames,  logger=logger)
-            if random_subset:
-                # Randomly select a subset of pairs
-                original_size = len(pairs)
-                pairs = select_random_subset_of_pairs(pairs, random_subset_size)
-                debug_log(logger, "filter_image_pairs", f"Selected random subset of {len(pairs)} pairs from {original_size} total pairs.")
+        cache_filename = f"pairs_parallax{min_parallax}_frames{min_distance_bw_frames}.json"
+        cache_file = seq_dir / cache_dir / cache_filename
+        # Ensure the cache directory exists
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
 
-        else:
-            raise ValueError(f"Unknown pair_images_strategy: {pair_images_strategy}")
-        
+        # Use the cached version
+        pairs = filter_image_pairs(
+            images, reconstruction, covisibility_graph, 
+            cache_file=cache_file,
+            force_recompute=False,  # Set to True if you want to recompute regardless of cache
+            min_parallax=min_parallax,
+            covisibility_threshold=covisibility_threshold, 
+            min_track_len=min_track_len,
+            max_reproj_error=max_reproj_error, 
+            min_shared_points=min_shared_points, 
+            min_distance_bw_frames=min_distance_bw_frames,
+            pair_images_strategy=pair_images_strategy,
+            random_subset=random_subset,
+            random_subset_size=random_subset_size, 
+            logger=logger
+        )
+
         # Compute total pair of images in the submap with the filtered pairs
         total_images_submap = len(pairs)
 
@@ -211,9 +210,12 @@ def main_loop():
 
                 # Initialize the matcher
                 matcher = get_matcher(model_name, device=device, **matcher_kwargs, **ransac_kwargs)
-                debug_log(logger, "error_measurement", f"Extractor conf: {matcher.extractor.conf}")
-                debug_log(logger, "error_measurement", f"Matcher conf: {matcher.matcher.conf}")
-            
+                # TODO: for Roma and maybe others, there is no matcher.extractor or matcher.conf. I have fixed it for SIFT-NN but dk if I should for all the others
+                if hasattr(matcher, 'extractor') and matcher.extractor is not None and hasattr(matcher.extractor, 'conf'):
+                    debug_log(logger, "error_measurement", f"Extractor conf: {matcher.extractor.conf}")
+                if hasattr(matcher, 'matcher') and matcher.matcher is not None and hasattr(matcher.matcher, 'conf'):
+                    debug_log(logger, "error_measurement", f"Matcher conf: {matcher.matcher.conf}")
+                   
                 output_report_dir = Path(f'output/error_measurement/{seq}/{model_name}/{timestamp}')
                 output_report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -333,7 +335,6 @@ def main_loop():
                     registered_images, total_images_submap, logger
                 )
                 
-                # TODO colon: add metadata to the submap report
                 # Metadata
                 metadata = {
                     "device_info": device_info,
@@ -346,12 +347,18 @@ def main_loop():
                     "matcher_config": matcher.matcher.conf, 
                     "sequence": seq,
                     "submap": submap,
-                    "submap_p3d_errors_pre_filter": submap_p3d_errors_pre_filter,
+                    "min_parallax": min_parallax,
+                    "min_distance_bw_frames": min_distance_bw_frames,
+                    "pair_images_strategy": pair_images_strategy,
+                    "random_subset": random_subset,
+                    "random_subset_size": random_subset_size,
+                    # "submap_p3d_errors_pre_filter": submap_p3d_errors_pre_filter,
                     "mean_submap_p3d_error_pre_filter": np.mean(submap_p3d_errors_pre_filter),
                     "median_submap_p3d_error_pre_filter": np.median(submap_p3d_errors_pre_filter),
                     "model_name": model_name,
                     "timestamp": timestamp,
                     "report_status": "complete",
+                    
                 }
 
                 save_submap_report(
@@ -391,11 +398,11 @@ def main_loop():
                         "matcher_params": matcher_kwargs,
                         "thresholds_r": thresholds_r.tolist(),
                         "thresholds_t": thresholds_t.tolist(),
-                        "extractor_config": matcher.extractor.conf,
-                        "matcher_config": matcher.matcher.conf, 
+                        "extractor_config": matcher.extractor.conf if hasattr(matcher, 'extractor') and hasattr(matcher.extractor, 'conf') else "not available",
+                        "matcher_config": matcher.matcher.conf if hasattr(matcher, 'matcher') and hasattr(matcher.matcher, 'conf') else "not available",
                         "sequence": seq,
                         "submap": submap,
-                        "submap_p3d_errors_pre_filter": submap_p3d_errors_pre_filter,
+                        # "submap_p3d_errors_pre_filter": submap_p3d_errors_pre_filter,
                         "mean_submap_p3d_error_pre_filter": np.mean(submap_p3d_errors_pre_filter),
                         "median_submap_p3d_error_pre_filter": np.median(submap_p3d_errors_pre_filter),
                         "model_name": model_name,

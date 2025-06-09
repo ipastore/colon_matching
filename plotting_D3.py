@@ -5,14 +5,14 @@ from pathlib import Path
 import numpy as np
 
 # En tu caso, ajusta la ruta según corresponda
-timestamp_name = '20250513_210936'
+timestamp_name = '20250608_185951'
 output_dir = Path(f'./output/plot_images/D3/{timestamp_name}')
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # ------------------------------------------------------------------
 # 1) Load JSON files from submaps directory
 # ------------------------------------------------------------------
-submaps_dir = Path('./output/error_measurement/seq_001/sift-nn/20250513_210936/submaps')
+submaps_dir = Path('./output/error_measurement/seq_001/superpoint-lg/20250608_185951_parallax4_distance5/submaps')
 # Find all submap JSON files
 submap_files = list(submaps_dir.glob(f"submap_*.json"))
 
@@ -41,15 +41,20 @@ for submap_file in submap_files:
         # Podemos recuperar info global de submap
         total_img = submap_report.get("submap_data").get("results", None).get("Total_img",None)
         nimg_percentage = submap_report.get("submap_data").get("results", None).get("Nimg_percentage",None)
+        mAA = submap_report.get("submap_data").get("results", None).get("submap_mAA", None)
         mean_submap_p3d_error_pre_filter = submap_report.get("metadata").get("mean_submap_p3d_error_pre_filter", None)
         median_submap_p3d_error_pre_filter = submap_report.get("metadata").get("median_submap_p3d_error_pre_filter", None)
         submap_p3d_errors_pre_filter = submap_report.get("metadata").get("submap_p3d_errors_pre_filter", None)
+        model_name = submap_report.get("metadata").get("model_name", None)
+        sequence = submap_report.get("metadata").get("sequence", None)
 
         for pair in pairs:
             mkpts = pair.get("mkpts", None)
 
             row = {
                 'submap_id': submap_id,
+                'model_name': model_name,
+                'sequence': sequence,
                 'image0': pair["image0"],
                 'image1': pair["image1"],
                 'rot_error': pair["rot_error"],
@@ -59,6 +64,7 @@ for submap_file in submap_files:
                 'mkpts': mkpts,
                 'inliers': pair["inliers"],
                 'Total_img': total_img,
+                'mAA': mAA,
                 'Nimg_percentage': nimg_percentage,
                 'parallax': pair["parallax"],
                 "covis_score": pair["covis_score"],

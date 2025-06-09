@@ -44,11 +44,40 @@
             min-width: 400px;
             min-height: 400px;
         }
+        .summary-section {
+            padding: 20px 40px;
+            margin-bottom: 20px;
+        }
+        
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .summary-table th, .summary-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: center;
+        }
+        
+        .summary-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        
+        .summary-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .summary-table tr:hover {
+            background-color: #f0f0f0;
+        }        
     </style>
 </head>
 <body>
 
-<h1>Error Measurement Dashboard</h1>
+<h1 id="model-sequence">Model: <span id="model-name"></span>, Sequence: <span id="sequence-name"></span></h1>
 
 <div class="controls">
     <div class="controls-inner">
@@ -71,6 +100,25 @@
     </div>
 </div>
 
+<div class="summary-section">
+    <h2>Submap Summary</h2>
+    <table id="summary-table" class="summary-table">
+        <thead>
+            <tr>
+                <th>Submap ID</th>
+                <th>Total Pairs</th>
+                <th>Registered Pairs</th>
+                <th>mAA</th>
+                <th>Mean P3D Error</th>
+                <th>Median P3D Error</th>
+            </tr>
+        </thead>
+        <tbody id="summary-tbody">
+            <!-- Will be filled by JavaScript -->
+        </tbody>
+    </table>
+</div>
+
 <div class="plots">
     <div id="boxplot_rot" class="plot"></div>
     <div id="boxplot_trans" class="plot"></div>
@@ -78,7 +126,8 @@
     <div id="scatter_trans_inliers" class="plot"></div>
     <div id="scatter_rot_parallax" class="plot"></div>
     <div id="scatter_trans_parallax" class="plot"></div>
-    <div id="boxplot_p3d_errors" class="plot"></div>
+    <div id="scatter_rot_reprojection" class="plot"></div>
+    <div id="scatter_trans_reprojection" class="plot"></div>
 
 
 </div>
@@ -87,6 +136,16 @@
 // ---------- EMBEDDED DATA ----------
 const data = {{DATA_JSON}};
 // ------------------------------------
+
+// Extract model_name and seq from the first item in the data array
+document.addEventListener('DOMContentLoaded', () => {
+    if (data.length > 0) {
+        const firstItem = data[0];
+        document.getElementById('model-name').textContent = firstItem.model_name || "Unknown";
+        document.getElementById('sequence-name').textContent = firstItem.sequence || "Unknown";
+    }
+});
+
 
 // Create consistent color mapping per submap_id
 const uniqueSubmaps = [...new Set(data.map(d => d.submap_id))];
@@ -107,6 +166,50 @@ function resetFilters() {
     updatePlots();
 }
 
+function updateSummaryTable() {
+    // Group data by submap and calculate summary statistics
+    const submapSummary = {};
+    
+    data.forEach(d => {
+        if (!submapSummary[d.submap_id]) {
+            submapSummary[d.submap_id] = {
+                submap_id: d.submap_id,
+                Total_img: d.Total_img,
+                Nimg_percentage: d.Nimg_percentage,
+                mAA: d.mAA,
+                mean_submap_p3d_error_pre_filter: d.mean_submap_p3d_error_pre_filter,
+                median_submap_p3d_error_pre_filter: d.median_submap_p3d_error_pre_filter,
+            };
+        }
+    });
+    
+    // Sort submaps numerically
+    const sortedSubmaps = Object.values(submapSummary).sort((a, b) => 
+        parseInt(a.submap_id) - parseInt(b.submap_id)
+    );
+    
+    // Build the table HTML
+    const tbody = document.getElementById('summary-tbody');
+    tbody.innerHTML = '';
+    
+    sortedSubmaps.forEach(submap => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${submap.submap_id}</td>
+            <td>${submap.Total_img}</td>
+            <td>${submap.Nimg_percentage.toFixed(2)}%</td>
+            <td>${submap.mAA ? submap.mAA.toFixed(4) : 'N/A'}</td>
+            <td>${submap.mean_submap_p3d_error_pre_filter ? submap.mean_submap_p3d_error_pre_filter.toFixed(4) : 'N/A'}</td>
+            <td>${submap.median_submap_p3d_error_pre_filter ? submap.median_submap_p3d_error_pre_filter.toFixed(4) : 'N/A'}</td>
+        `;
+        
+        // Use the same color coding as in the plots
+        row.style.borderLeft = `5px solid ${submapColorMap[submap.submap_id]}`;
+        
+        tbody.appendChild(row);
+    });
+}
+
 function updatePlots() {
     const minInliers = parseFloat(document.getElementById('min_inliers').value) || 0;
     const minParallax = parseFloat(document.getElementById('min_parallax').value) || 0.0;
@@ -122,6 +225,8 @@ function updatePlots() {
         }
         submapGroups[d.submap_id].push(d);
     });
+
+    updateSummaryTable();
 
     // Hover Template
     function fullHover(d) {
@@ -141,8 +246,6 @@ function updatePlots() {
             mean_reprojection_error: ${d.mean_reprojection_error.toFixed(3)}<br>
             median_reprojection_error: ${d.median_reprojection_error.toFixed(3)}<br>
             std_reprojection_error: ${d.std_reprojection_error.toFixed(3)}<br>
-            mean_submap_p3d_error_pre_filter: ${d.mean_submap_p3d_error_pre_filter.toFixed(3)}<br>
-            median_submap_p3d_error_pre_filter: ${d.median_submap_p3d_error_pre_filter.toFixed(3)}<br>
             n_3d_colmap_points: ${d.n_3d_colmap_points}<br>
         `;
     }
@@ -190,7 +293,7 @@ function updatePlots() {
     }
     boxPlot('rot_error', 'Rotation Error by Submap', 'boxplot_rot');
     boxPlot('trans_error_deg', 'Translation Error by Submap', 'boxplot_trans');
-    // boxPlot('submap_p3d_errors_pre_filter', 'P3D Errors by Submap', 'boxplot_p3d_errors', "none");
+    // boxPlot('submap_p3d_errors_pre_filter', 'P3D Errors by Submap', 'boxplot_p3d_errors', "none"); // Takes to long, instead make a correlation for each image_pair
 
     function scatterPlot(xField, yField, title, divId) {
         const xMax = Math.max(...data.map(d => d[xField])) * 1.05;
@@ -231,6 +334,8 @@ function updatePlots() {
     scatterPlot('inliers', 'trans_error_deg', 'Translation Error vs Inliers', 'scatter_trans_inliers');
     scatterPlot('parallax', 'rot_error', 'Rotation Error vs Parallax', 'scatter_rot_parallax');
     scatterPlot('parallax', 'trans_error_deg', 'Translation Error vs Parallax', 'scatter_trans_parallax');
+    scatterPlot('mean_reprojection_error', 'rot_error', 'Rotation Error vs Mean Reprojection Error', 'scatter_rot_reprojection');
+    scatterPlot('mean_reprojection_error', 'trans_error_deg', 'Translation Error vs Mean Reprojection Error', 'scatter_trans_reprojection');
 }
 
 // Initial plot

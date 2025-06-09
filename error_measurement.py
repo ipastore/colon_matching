@@ -40,8 +40,8 @@ activated_debug_flags = {"filter_image_pairs","error_measurement"}
 # models = ["gim-lg"]
 # models = ["tiny-roma"]
 # models = ["sift-lg"]
-models = ["superpoint-lg"]
-# models = ["roma"]
+# models = ["superpoint-lg"]
+models = ["roma"]
 # models = ["sift-nn", "gim-lg", "tiny-roma", "sift-lg", "superpoint-lg", "roma"]
 ############################# CHOOSE IMAGE DIRECTORY #############################
 # image_dir = Path(f'data')
@@ -72,14 +72,24 @@ matcher_kwargs = {
     'n_octave_layers': 4,         # SIFT number of octave layers
 ############################### KNN (SIFT) #############################
     # TODO colon: if we want to upgrade these parameter, some logic in the matcher should be changed. Right now it's hardcoded to 2
-    'k_neighbors': 2             # Number of nearest neighbors to consider for matching. BUT, I think it would not be useful to improve matching.
+    'k_neighbors': 2,             # Number of nearest neighbors to consider for matching. BUT, I think it would not be useful to improve matching.
+############################### Roma #############################
+    'roma_model': 'roma_outdoor',  # Choose between 'roma_outdoor' or 'roma_indoor'
+    #TODO: see if we want to select this parametrs to be applied in 
+    # 'coarse_res': 560,  # Coarse resolution for Roma model
+    # 'upsample_res': 864,  # Upsample resolution for Roma model
+    # 'sample_mode': 'threshold_balanced',  # Sampling mode for Roma model
+    # 'sample_thresh': 0.05,  # Sampling threshold for Roma model
+    # 'attenuate_cert': True,  # Attenuate certainties in Roma model
+    # 'max_roma_keypoints': 2048,  # Maximum number of keypoints for Roma model
 }
 ############################# RANSAC #############################
 #RANSAC it´s not used in the current implementation (we could bypass it)
 ransac_kwargs = {
-    'ransac_reproj_thresh': 0.0,
-    'ransac_conf': 0.0,
-    'ransac_iters': 0
+    'skip_ransac': True,  # Skip RANSAC for relative pose estimation
+    'ransac_reproj_thresh': 0.0, # not used if skip_ransac is True
+    'ransac_conf': 0.0,             # not used if skip_ransac is True
+    'ransac_iters': 0       # not used if skip_ransac is True
 }
 ############################# Seq #############################
 # seq = "seq_001"

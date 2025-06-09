@@ -76,8 +76,8 @@
     </style>
 </head>
 <body>
-
-<h1 id="model-sequence">Model: <span id="model-name"></span>, Sequence: <span id="sequence-name"></span></h1>
+    
+    <h1 id="model-sequence">Model: <span id="model-name"></span>, Sequence: <span id="sequence-name"></span></h1>
 
 <div class="controls">
     <div class="controls-inner">
@@ -270,7 +270,6 @@ function updatePlots() {
                 marker: { color: submapColorMap[submap] }
             };
             
-            // TODO add other hover fields if needed
             // Add hover info only if not set to 'none'
             if (hoverField !== 'none') {
                 trace.hovertext = submapGroups[submap].map(fullHover);
@@ -287,10 +286,18 @@ function updatePlots() {
                 title: yField,
                 range: [0, yMax]
             },
+            xaxis: {
+                type: 'category',  // This is the key change - treat x-axis as categorical
+                categoryorder: 'array',
+                categoryarray: Object.keys(submapGroups).sort((a, b) => 
+                    parseInt(a) - parseInt(b)
+                )
+            },
             boxmode: 'group',
             uirevision: 'true'
         });
     }
+
     boxPlot('rot_error', 'Rotation Error by Submap', 'boxplot_rot');
     boxPlot('trans_error_deg', 'Translation Error by Submap', 'boxplot_trans');
     // boxPlot('submap_p3d_errors_pre_filter', 'P3D Errors by Submap', 'boxplot_p3d_errors', "none"); // Takes to long, instead make a correlation for each image_pair

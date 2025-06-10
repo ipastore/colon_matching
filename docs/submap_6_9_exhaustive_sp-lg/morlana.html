@@ -76,8 +76,8 @@
     </style>
 </head>
 <body>
-
-<h1 id="model-sequence">Model: <span id="model-name"></span>, Sequence: <span id="sequence-name"></span></h1>
+    
+    <h1 id="model-sequence">Model: <span id="model-name"></span>, Sequence: <span id="sequence-name"></span></h1>
 
 <div class="controls">
     <div class="controls-inner">
@@ -191,7 +191,28 @@ function updateSummaryTable() {
     // Build the table HTML
     const tbody = document.getElementById('summary-tbody');
     tbody.innerHTML = '';
+    // Calculate averages across all submaps
+    const avgTotalImg = sortedSubmaps.reduce((sum, submap) => sum + (submap.Total_img || 0), 0) / sortedSubmaps.length;
     
+    const avgNimgPercentage = sortedSubmaps.reduce((sum, submap) => sum + (submap.Nimg_percentage || 0), 0) / sortedSubmaps.length;
+    
+    const validMAAValues = sortedSubmaps.filter(submap => submap.mAA !== undefined && !isNaN(submap.mAA));
+    const avgMAA = validMAAValues.length > 0 ? 
+                   validMAAValues.reduce((sum, submap) => sum + submap.mAA, 0) / validMAAValues.length : 
+                   null;
+    
+    const validMeanP3DValues = sortedSubmaps.filter(submap => 
+        submap.mean_submap_p3d_error_pre_filter !== undefined && !isNaN(submap.mean_submap_p3d_error_pre_filter));
+    const avgMeanP3D = validMeanP3DValues.length > 0 ? 
+                       validMeanP3DValues.reduce((sum, submap) => sum + submap.mean_submap_p3d_error_pre_filter, 0) / validMeanP3DValues.length : 
+                       null;
+    
+    const validMedianP3DValues = sortedSubmaps.filter(submap => 
+        submap.median_submap_p3d_error_pre_filter !== undefined && !isNaN(submap.median_submap_p3d_error_pre_filter));
+    const avgMedianP3D = validMedianP3DValues.length > 0 ? 
+                         validMedianP3DValues.reduce((sum, submap) => sum + submap.median_submap_p3d_error_pre_filter, 0) / validMedianP3DValues.length : 
+                         null;
+
     sortedSubmaps.forEach(submap => {
         const row = document.createElement('tr');
         row.innerHTML = `
@@ -207,7 +228,26 @@ function updateSummaryTable() {
         row.style.borderLeft = `5px solid ${submapColorMap[submap.submap_id]}`;
         
         tbody.appendChild(row);
+
     });
+    
+    // Add the average row
+    const avgRow = document.createElement('tr');
+    avgRow.innerHTML = `
+        <td><strong>Average</strong></td>
+        <td><strong>${avgTotalImg.toFixed(1)}</strong></td>
+        <td><strong>${avgNimgPercentage.toFixed(2)}%</strong></td>
+        <td><strong>${avgMAA !== null ? avgMAA.toFixed(4) : 'N/A'}</strong></td>
+        <td><strong>${avgMeanP3D !== null ? avgMeanP3D.toFixed(4) : 'N/A'}</strong></td>
+        <td><strong>${avgMedianP3D !== null ? avgMedianP3D.toFixed(4) : 'N/A'}</strong></td>
+    `;
+    
+    // Style the average row
+    avgRow.style.backgroundColor = '#f2f2f2';
+    avgRow.style.fontWeight = 'bold';
+    avgRow.style.borderTop = '2px solid #555';
+    
+    tbody.appendChild(avgRow);    
 }
 
 function updatePlots() {
@@ -270,7 +310,6 @@ function updatePlots() {
                 marker: { color: submapColorMap[submap] }
             };
             
-            // TODO add other hover fields if needed
             // Add hover info only if not set to 'none'
             if (hoverField !== 'none') {
                 trace.hovertext = submapGroups[submap].map(fullHover);
@@ -287,10 +326,18 @@ function updatePlots() {
                 title: yField,
                 range: [0, yMax]
             },
+            xaxis: {
+                type: 'category',  // This is the key change - treat x-axis as categorical
+                categoryorder: 'array',
+                categoryarray: Object.keys(submapGroups).sort((a, b) => 
+                    parseInt(a) - parseInt(b)
+                )
+            },
             boxmode: 'group',
             uirevision: 'true'
         });
     }
+
     boxPlot('rot_error', 'Rotation Error by Submap', 'boxplot_rot');
     boxPlot('trans_error_deg', 'Translation Error by Submap', 'boxplot_trans');
     // boxPlot('submap_p3d_errors_pre_filter', 'P3D Errors by Submap', 'boxplot_p3d_errors', "none"); // Takes to long, instead make a correlation for each image_pair

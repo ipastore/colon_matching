@@ -5,14 +5,14 @@ from pathlib import Path
 import numpy as np
 
 # En tu caso, ajusta la ruta según corresponda
-timestamp_name = '20250608_185951'
+timestamp_name = '20250623_204323'
 output_dir = Path(f'./output/plot_images/D3/{timestamp_name}')
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # ------------------------------------------------------------------
 # 1) Load JSON files from submaps directory
 # ------------------------------------------------------------------
-submaps_dir = Path('./output/error_measurement/seq_001/superpoint-lg/20250608_185951_parallax4_distance5/submaps')
+submaps_dir = Path('./output/error_measurement/seq_001_002/superpoint-lg/20250623_204323/submaps')
 # Find all submap JSON files
 submap_files = list(submaps_dir.glob(f"submap_*.json"))
 
@@ -59,7 +59,6 @@ for submap_file in submap_files:
                 'image1': pair["image1"],
                 'rot_error': pair["rot_error"],
                 'trans_error_deg': pair["trans_error_deg"],
-                'trans_error_rel': pair["trans_error_rel"],
                 't_colmap_norm': pair ["t_colmap_norm"],
                 'mkpts': mkpts,
                 'inliers': pair["inliers"],

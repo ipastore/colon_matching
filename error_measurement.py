@@ -40,8 +40,8 @@ activated_debug_flags = {"filter_image_pairs","error_measurement"}
 # models = ["gim-lg"]
 # models = ["tiny-roma"]
 # models = ["sift-lg"]
-# models = ["superpoint-lg"]
-models = ["roma"]
+models = ["superpoint-lg"]
+# models = ["roma"]
 # models = ["sift-nn", "gim-lg", "tiny-roma", "sift-lg", "superpoint-lg", "roma"]
 ############################# RESIZE #############################
 #FIX colon: This resize does not preserv aspect ratio
@@ -56,8 +56,8 @@ plot_kpts = True
 # Parameters for SuperPoint extractor and LightGlue matcher
 matcher_kwargs = {
 ############################### SuperPoint #############################
-    'detection_threshold': 0.005,  # SuperPoint keypoint detection threshold. Default 0.005
-    'max_superpoint_keypoints': 1024,     # Maximum number of keypoints to detect. Default 1024
+    'detection_threshold': 0.00005,  # SuperPoint keypoint detection threshold. Default 0.005
+    'max_superpoint_keypoints': 4000,     # Maximum number of keypoints to detect. Default 1024
 ############################### LightGlue (with superpoint, check if using with another detector, should modify the matcher class) #############################
     'filter_threshold': 0.1 ,       # LightGlue matching threshold. Default 0.1
     "depth_confidence": -1,        # early stopping, disable with -1 / 0.95
@@ -93,8 +93,8 @@ ransac_kwargs = {
 # seq = "seq_001"
 # seq = "graham-hall_toy"
 # seq = "seq_001_toy"
-seq = "seq_001_v2"
-# seq = "seq_001_002"
+# seq = "seq_001_v2"
+seq = "seq_001_002"
 seq_dir = Path(f'data/{seq}')
 ############################# Covisibility #############################|
 covisibility_threshold = 0.0 # for filtering image pairs (easy, medium, hard)
@@ -114,7 +114,7 @@ thresholds_t = np.array([5,10,15,20,30])
 ############################# Thresholds #############################
 # pair_images_strategy = "greedy_sequential" # for filtering image pairs
 pair_images_strategy = "exhaustive" # for filtering image pairs
-random_subset = False # for selecting a random subset of pairs after filtering
+random_subset = True # for selecting a random subset of pairs after filtering
 random_subset_size = 50
 ############################## Min distance between frames #############################
 min_distance_bw_frames = 5
@@ -267,22 +267,28 @@ def main_loop():
                           masking=masking, plot_kpts=plot_kpts, min_matches_for_pose=min_matches_for_pose, min_inliers_for_pose=min_inliers_for_pose
                     )
 
+                    registered = True
+                    # Penalize with identity if no matches or inliers
                     if result_matcher is None or R01_est is None or t01_est is None:
-                        continue
+                        R01_est = np.identity(3)
+                        t01_est = np.zeros(3)
+                        registered = False
 
                     # rotation error
                     rot_err = rotation_error_deg(R01_colmap, R01_est)
                     # translation error relative to the diameter of the submap
                     trans_err_deg = translation_error_direction_deg(t01_colmap, t01_est)
-                    trans_err_rel = translation_error_relative_to_colmap(t01_colmap, t01_est)
                     pair_end_time = time.perf_counter()
-                    
-                    debug_log(logger, "error_measurement",f"{img0_name}_{img1_name} trans_err_rel: {trans_err_rel:.3f} ")
-                    debug_log(logger, "error_measurement",f"{img0_name}_{img1_name} trans_error_deg: {trans_err_deg:.3f} degrees" )
+
+                    if registered:
+                        # Add pair of images to registered images set
+                        registered_images.append((img0_name, img1_name))
+
+                    debug_log(logger, "error_measurement",f"{img0_name}_{img1_name} trans_error_deg: {trans_err_deg:.3f} degrees")
                     debug_log(logger, "error_measurement",f"{img0_name}_{img1_name} rot_error: {rot_err:.3f} degrees" )
                     debug_log(logger, "error_measurement",f"parallax: {parallax:.3f} degrees" )
-                    debug_log(logger, "error_measurement",f"inliers: {result_matcher['num_inliers']}")
-                    debug_log(logger, "error_measurement",f"matches: {len(result_matcher['matched_kpts0'])}")
+                    debug_log(logger, "error_measurement",f"inliers: {result_matcher['num_inliers']}" if result_matcher is not None and 'num_inliers' in result_matcher else "N/A")
+                    debug_log(logger, "error_measurement",f"matches: {len(result_matcher['matched_kpts0'])}" if result_matcher is not None and 'matched_kpts0' in result_matcher else "N/A")
 
                     # Append errors to submap lists, for reporting purposes
                     submap_rot_errs.append(rot_err)
@@ -292,17 +298,16 @@ def main_loop():
                     pair_info = {
                         "image0": img0_name,
                         "image1": img1_name,
-                        "mkpts": len(result_matcher['matched_kpts0']),
-                        "inliers": result_matcher['num_inliers'],
-                        "kpts0": len(result_matcher['all_kpts0']),
-                        "kpts1": len(result_matcher['all_kpts1']),
-                        "extractor_time": extractor_time,
-                        "filter_time": filter_time,
-                        "matcher_time": match_time,
+                        "mkpts": len(result_matcher['matched_kpts0']) if result_matcher is not None and 'matched_kpts0' in result_matcher else 0,
+                        "inliers": result_matcher['num_inliers'] if result_matcher is not None and 'num_inliers' in result_matcher else 0,
+                        "kpts0": len(result_matcher['all_kpts0']) if result_matcher is not None and 'all_kpts0' in result_matcher else 0,
+                        "kpts1": len(result_matcher['all_kpts1']) if result_matcher is not None and 'all_kpts1' in result_matcher else 0,
+                        "extractor_time": extractor_time if extractor_time is not None else 0.0,
+                        "filter_time": filter_time if filter_time is not None else 0.0,
+                        "matcher_time": match_time if match_time is not None else 0.0,
                         "total_pair_time": pair_end_time - pair_start_time,
                         "rot_error":  rot_err,
                         "trans_error_deg":    trans_err_deg,
-                        "trans_error_rel": trans_err_rel,
                         "t_colmap_norm": np.linalg.norm(t01_colmap),
                         "t_est_norm": np.linalg.norm(t01_est),
                         "covis_score": covis_score,
@@ -320,9 +325,6 @@ def main_loop():
 
                     pair_metrics.append(pair_info)
 
-                    # Add pair of images to registered images set
-                    registered_images.append((img0_name, img1_name))
-                                    
                     del result_matcher, R01_est, t01_est, R01_colmap, t01_colmap, image0, image1, camera0, camera1, pair_info
                     gc.collect()
                     if torch.cuda.is_available():
@@ -352,7 +354,6 @@ def main_loop():
                     "pair_images_strategy": pair_images_strategy,
                     "random_subset": random_subset,
                     "random_subset_size": random_subset_size,
-                    # "submap_p3d_errors_pre_filter": submap_p3d_errors_pre_filter,
                     "mean_submap_p3d_error_pre_filter": np.mean(submap_p3d_errors_pre_filter),
                     "median_submap_p3d_error_pre_filter": np.median(submap_p3d_errors_pre_filter),
                     "model_name": model_name,

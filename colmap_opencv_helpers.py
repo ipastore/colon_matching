@@ -74,6 +74,32 @@ def compute_mAA(rot_errors_deg, trans_errors_m, thresholds_r, thresholds_t):
     
     return np.mean(accuracies)
 
+def compute_AA(rot_err, trans_err, thresholds_r, thresholds_t):
+    """
+    Compute Average Accuracy (AA) for a single pair of rotation & translation errors
+    at multiple threshold pairs.
+
+    Args:
+        rot_err: rotation error in degrees
+        trans_err: translation error in degrees
+        thresholds_r: list of rotation thresholds in degrees
+        thresholds_t: list of translation thresholds in meters
+
+    Returns:
+        float: Average Accuracy (AA) score
+    """
+
+    assert len(thresholds_r) == len(thresholds_t), "Threshold lists must have the same length"
+
+    for r_thresh, t_thresh in zip(thresholds_r, thresholds_t):
+        accuracies = []
+        if rot_err < r_thresh and trans_err < t_thresh:
+            accuracies.append(1.0)
+        else:
+            accuracies.append(0.0)
+
+    return np.mean(accuracies)
+
 # #TODO colon_matching: option1 OLD
 def translation_error_relative_to_colmap(t_colmap: np.ndarray, t_est: np.ndarray) -> float:
     """
@@ -117,10 +143,14 @@ def translation_error_direction_deg(t_colmap: np.ndarray, t_est: np.ndarray) -> 
 
     assert t_colmap.shape == (3,), "t_colmap must be shape (3,)"
     assert t_est.shape == (3,),    "t_est must be shape (3,)"
-    
+
+    if np.array_equal(t_est, np.zeros(3)):
+        t_est_unit = np.zeros(3)
+    else:
+        t_est_unit = t_est / np.linalg.norm(t_est)
+
     # Normalize the translation vectors
     t_colmap_unit = t_colmap / np.linalg.norm(t_colmap)
-    t_est_unit    = t_est    / np.linalg.norm(t_est)
 
     # Compute the angle between the two normalized vectors
     cos_angle = np.dot(t_colmap_unit, t_est_unit)
@@ -686,9 +716,9 @@ def get_relative_pose_from_matcher(img0_path, img1_path, camera0, camera1,
     # estimation_options = pycolmap.RANSACOptions()
     result_colmap = pycolmap.estimate_essential_matrix(corrected_mkpts0, corrected_mkpts1, camera0, camera1)
 
-    # Similarly for essential matrix estimation failure, add penalty instead of skipping
+    # Similarly for essential matrix estimation failure, add penalty instead of skipping.
     if result_colmap is None:
-        logger.warning(f"Not enough inliers for {img0_path.stem} and {img1_path.stem}. Adding penalty error values.")
+        logger.warning(f"Could not compute E matrix with {img0_path.stem} and {img1_path.stem}. Adding penalty error values.")
         del result_colmap, corrected_mkpts0, corrected_mkpts1, mkpts0, mkpts1, matcher
         gc.collect()
         return None, None, None, None, None, None

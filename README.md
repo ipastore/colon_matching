@@ -1,122 +1,161 @@
-> [!NOTE]
->	This repo is optimized for usability, not necessarily for speed or performance. Ideally you can use this repo to find the matcher that best suits your needs, and then use the original code (or a modified version of this code) to get maximize performance. Default hyperparameters used here **may not be optimal for your use case!** source:https://github.com/alexstoken/image-matching-models
-
-
-## Information about cases:
-
-Son 3 carpetas: easy, medium and hard
-
-- En easy hay 1 submapa, el objetivo es emparejar las imágenes entre sí. 
-- En medium hay 3 submapas de la misma secuencia, el objetivo es emparejar submapas de un submapa contra imágenes de otros submapas. 
-- En hard hay 1 submapa de otra secuencia, el objetivo es emparejar submapas de medium contra él (misma idea que el trabajo de Computer Vision)
-
-## **📌 Workflow for Your Git Operations**
-
-### **1️⃣ Pulling & Pushing in Your Main Repository (`colon_matching`)**
-
-#### ✅ **Pull the latest changes from your repo (`colon_matching`)**
-
-```bash
-git pull origin main
-```
-
-#### ✅ **Push your changes to your repo (`colon_matching`)**
-
-```bash
-git add .
-git commit -m "Updated main repository"
-git push origin main
-```
+Perfect — let’s draft a `README.md` that explains how to set up and run **colon\_matching** with its dependency on **image-matching-models (IMM)**. I’ll keep it clean, structured, and suitable for GitHub.
 
 ---
 
-### **2️⃣ Pulling & Pushing in Your Submodule (`image-matching_models`)**
+````markdown
+# colon_matching
 
-#### ✅ **Move into the submodule**
-
-```bash
-cd utils/image-matching_models
-```
-
-#### ✅ **Pull the latest changes from your fork (`origin`)**
-
-```bash
-git pull origin main
-```
-#### ✅ **To pull the latest updates for the submodule**
-
-```bash
-git submodule update --init --recursive
-```
-
-
-#### ✅ **Pull updates from the original upstream repo (`alexstoken`)**
-
-If the upstream repo (`alexstoken/image-matching-models`) has updates you want:
-
-```bash
-git fetch upstream
-git merge upstream/main  # or rebase: git rebase upstream/main
-```
-
-#### ✅ **Push the updates to your fork (`origin`)**
-
-```bash
-git push origin main
-```
-
-#### ✅ **Move back to the main repo**
-
-```bash
-cd ../..
-```
-
-#### ✅ **Update the submodule reference in your main repo**
-
-If the submodule (`image-matching_models`) was updated, your main repo (`colon_matching`) needs to track the new commit:
-
-```bash
-git add utils/image-matching_models
-git commit -m "Updated submodule reference"
-git push origin main
-```
+Tools for evaluating and benchmarking feature matching models on colonoscopy datasets.  
+This repository depends on [image-matching-models (IMM)](https://github.com/alexstoken/image-matching-models) for local feature extraction and matching.
 
 ---
 
-### **3️⃣ Cloning the Repo & Submodules on a New Machine**
+## 📦 Installation
 
-#### ✅ **Clone your main repository (including submodules)**
+We recommend a fresh Python 3.10+ environment (conda or venv).
 
+### 1. Clone with submodules
 ```bash
 git clone --recurse-submodules https://github.com/ipastore/colon_matching.git
-```
+cd colon_matching
+````
 
-_(This ensures the submodule is downloaded too.)_
-
-#### ✅ **If you already cloned it without submodules**
+If you already cloned without `--recurse-submodules`, run:
 
 ```bash
 git submodule update --init --recursive
 ```
 
-#### ✅ **To pull the latest updates for the submodule**
+### 2. System dependencies (Linux / Ubuntu)
+
+Make sure you have compilers and runtime libs for OpenCV:
 
 ```bash
-git submodule update --remote --merge
+sudo apt update
+sudo apt install -y build-essential git git-lfs cmake ninja-build \
+    libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 ffmpeg
+git lfs install
+```
+
+### 3. Python environment
+
+Create and activate a new environment (example with conda):
+
+```bash
+conda create -n colon_matching python=3.10 -y
+conda activate colon_matching
+```
+
+### 4. Install PyTorch
+
+Pick one (see [PyTorch install](https://pytorch.org/get-started/locally/)):
+
+CPU only:
+
+```bash
+pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision torchaudio
+```
+
+CUDA 12.1 (if GPU available):
+
+```bash
+pip install --index-url https://download.pytorch.org/whl/cu121 torch torchvision torchaudio
+```
+
+### 5. Install IMM
+
+From the submodule:
+
+```bash
+cd utils/image-matching-models
+pip install -e .
+pip install '.[all]'   # optional: install extras (LoFTR, OmniGlue, etc.)
+cd ../../
+```
+
+### 6. Colon Matching extras
+
+```bash
+pip install ipykernel pandas matplotlib scikit-learn scikit-image tqdm open3d-cpu pycolmap plotly dash
+```
+
+### 7. (Optional) Jupyter kernel
+
+```bash
+python -m ipykernel install --user --name colon_matching --display-name "Python (colon_matching)"
 ```
 
 ---
 
-### **🔹 Summary Table: Git Commands for Each Repository**
+## ✅ Quick test
 
-|Action|**Main Repo (`colon_matching`)**|**Submodule (`image-matching_models`)**|
-|---|---|---|
-|**Pull latest changes**|`git pull origin main`|`cd utils/image-matching_models && git pull origin main`|
-|**Pull from upstream (original repo of fork)**|_Not applicable_|`git fetch upstream && git merge upstream/main`|
-|**Push changes**|`git push origin main`|`git push origin main`|
-|**Update submodule reference in main repo**|`git add utils/image-matching_models && git commit -m "Updated submodule"`|_Not needed_|
-|**Clone repo with submodules**|`git clone --recurse-submodules <repo-url>`|_Handled automatically_|
-|**Manually update submodules**|`git submodule update --init --recursive`|`git submodule update --remote --merge`|
+Verify IMM is working:
+
+```bash
+python - <<'PY'
+from matching import get_matcher
+m = get_matcher('sift-lg', device='cpu')
+print("IMM OK:", type(m).__name__)
+PY
+```
+
+Expected output:
+
+```
+IMM OK: <some matcher class>
+```
 
 ---
 
+## 🚀 Usage
+
+### Benchmarking
+
+Run the main benchmarking script:
+
+```bash
+python benchmark.py --config configs/example.yaml
+```
+
+### Demo notebook
+
+Launch Jupyter and open:
+
+```bash
+jupyter notebook demo.ipynb
+```
+
+---
+
+## 🗂 Project structure
+
+```
+colon_matching/
+│
+├── tools/
+│   └── image-matching-models/   # IMM submodule
+├── configs/                     # Example configs for experiments
+├── benchmark.py                 # Main benchmarking script
+├── demo.ipynb                   # Example notebook
+└── scripts/                     # Helper setup and automation scripts
+```
+
+---
+
+## ⚠️ Notes
+
+* IMM requires **PyTorch ≥ 2.2**.
+* Some models (LoFTR family, OmniGlue) need extra deps like `tensorflow` and `pytorch-lightning`; install with `[all]`.
+* `open3d`, `vtk`, and `pycolmap` are optional but useful for visualization and 3D reconstruction.
+
+---
+
+## 🛠 Development
+
+To keep your environment up to date:
+
+```bash
+git pull
+git submodule update --init --recursive
+pip install -e utils/image-matching-models
+```

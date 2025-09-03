@@ -158,13 +158,6 @@ def main_loop():
         #Get image pairs for the submap
         images = list(Path(f'data/{seq}/submap_images/{submap}').glob('*.png')) 
         
-        ########################## HARDCODE for Graham Hall dataset ##########################
-        # + \
-        #         list(Path(f'data/{seq}/img_train/exterior').glob('*.jpg')) + \
-        #         list(Path(f'data/{seq}/img_train/exterior').glob('*.JPG')) + \
-        #         list(Path(f'data/{seq}/img_train/interior').glob('*.jpg')) + \
-        #         list(Path(f'data/{seq}/img_train/interior').glob('*.JPG')) 
-        ########################## HARDCODE for Graham Hall dataset ##########################
 
         # Load previously generated covisibility graph (generate_cameras_model.py)                                       
         covisibility_path = sparse_model_dir / "camerasModel.txt"

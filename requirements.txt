@@ -1,0 +1,10 @@
+ipykernel
+pandas
+matplotlib
+scikit-learn
+scikit-image
+tqdm
+open3d-cpu
+pycolmap
+plotly
+dash

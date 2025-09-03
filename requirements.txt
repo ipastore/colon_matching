@@ -8,3 +8,4 @@ open3d-cpu
 pycolmap
 plotly
 dash
+pyyaml

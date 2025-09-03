@@ -21,103 +21,70 @@ from reporting_helpers import finalize_current_submap, create_sequence_report, s
 import gc
 import psutil
 import tracemalloc
+import yaml
 
+
+
+import yaml
+
+
+
+def load_config(config_path="config.yaml"):
+    """Load configuration from YAML file."""
+    config_file = Path(config_path)
+    if not config_file.exists():
+        raise FileNotFoundError(f"Configuration file {config_path} not found")
+    
+    with open(config_file, 'r') as f:
+        config = yaml.safe_load(f)
+    return config
 
 
 ############################# CONFIG #############################
+# Load configuration from YAML file
+config = load_config()
+
 device = get_default_device()
 device_info = get_device_info(device)
 ############################# Logging ############################# 
-DEBUG = True  # Global debug flag. Set to False to disable extra debug logging.
-# activated_debug_flags = {"match_image_pairs", "error_measurement"} 
-# "filter_image_pairs", "filter_image_feats_with_mask", "easy_medium_hard", "filter_image_feats_with_mask"
-#  "filter_feat_dict_with_mask", "base_matcher_forward", "Roma_forward", "Roma_forward_symmetric", "TinyRoma_forward"
-# activated_debug_flags = {"ALL"}
-activated_debug_flags = {"filter_image_pairs","error_measurement"}
+DEBUG = config['debug']['enabled']  # Global debug flag from config
+activated_debug_flags = set(config['debug']['activated_flags'])
 ############################# CHOOSE MODELS #############################
-# models = ["sift-nn", "superpoint-lg"]
-# models = ["sift-nn"]
-# models = ["gim-lg"]
-# models = ["tiny-roma"]
-# models = ["sift-lg"]
-models = ["superpoint-lg"]
-# models = ["roma"]
-# models = ["sift-nn", "gim-lg", "tiny-roma", "sift-lg", "superpoint-lg", "roma"]
+models = config['models']
 ############################# RESIZE #############################
-#FIX colon: This resize does not preserv aspect ratio
-# resize = 512
-resize = None
+resize = config['resize']
 ############################# MASK #############################
-# specular_mask = False
-masking = True
+masking = config['masking']
 ############################# Key Points #############################
-plot_kpts = True
+plot_kpts = config['plot_kpts']
 ############################# Matcher Hyperparameters #############################
-# Parameters for SuperPoint extractor and LightGlue matcher
-matcher_kwargs = {
-############################### SuperPoint #############################
-    'detection_threshold': 0.00005,  # SuperPoint keypoint detection threshold. Default 0.005
-    'max_superpoint_keypoints': 4000,     # Maximum number of keypoints to detect. Default 1024
-############################### LightGlue (with superpoint, check if using with another detector, should modify the matcher class) #############################
-    'filter_threshold': 0.1 ,       # LightGlue matching threshold. Default 0.1
-    "depth_confidence": -1,        # early stopping, disable with -1 / 0.95
-    "width_confidence": -1,          # point pruning, disable with -1 / 0.99
-############################### SIFT #############################
-    'lowe_thresh': 0.75,          # Lowe's ratio test threshold
-    'max_sift_keypoints': 5000,    # Maximum number of keypoints to detect
-    'contrast_threshold': 0.00025,   # SIFT contrast threshold. Rauls 0.00067. Default 0.02
-    'edge_threshold': 100,         # SIFT edge threshold. Rauls 50. Default 15
-    'n_octave_layers': 8,         # SIFT number of octave layers
-############################### KNN (SIFT) #############################
-    # TODO colon: if we want to upgrade these parameter, some logic in the matcher should be changed. Right now it's hardcoded to 2
-    'k_neighbors': 2,             # Number of nearest neighbors to consider for matching. BUT, I think it would not be useful to improve matching.
-############################### Roma #############################
-    'roma_model': 'roma_outdoor',  # Choose between 'roma_outdoor' or 'roma_indoor'
-    #TODO: see if we want to select this parametrs to be applied in 
-    # 'coarse_res': 560,  # Coarse resolution for Roma model
-    # 'upsample_res': 864,  # Upsample resolution for Roma model
-    # 'sample_mode': 'threshold_balanced',  # Sampling mode for Roma model
-    # 'sample_thresh': 0.05,  # Sampling threshold for Roma model
-    # 'attenuate_cert': True,  # Attenuate certainties in Roma model
-    # 'max_roma_keypoints': 2048,  # Maximum number of keypoints for Roma model
-}
+matcher_kwargs = config['matcher_kwargs']
 ############################# RANSAC #############################
-#RANSAC it´s not used in the current implementation (we could bypass it)
-ransac_kwargs = {
-    'skip_ransac': True,  # Skip RANSAC for relative pose estimation
-    'ransac_reproj_thresh': 0.0, # not used if skip_ransac is True
-    'ransac_conf': 0.0,             # not used if skip_ransac is True
-    'ransac_iters': 0       # not used if skip_ransac is True
-}
+ransac_kwargs = config['ransac_kwargs']
 ############################# Seq #############################
-# seq = "seq_001"
-# seq = "graham-hall_toy"
-# seq = "seq_001_toy"
-# seq = "seq_001_v2"
-seq = "seq_001_002"
+seq = config['seq']
 seq_dir = Path(f'data/{seq}')
 ############################# Covisibility #############################|
-covisibility_threshold = 0.0 # for filtering image pairs (easy, medium, hard)
-min_shared_points = 15 # for filtering image pairs
-min_track_len = 3 # for filtering image pairs
-max_reproj_error = 2.0 # for filtering image pairs
+covisibility_threshold = config['covisibility_threshold']
+min_shared_points = config['min_shared_points']
+min_track_len = config['min_track_len']
+max_reproj_error = config['max_reproj_error']
 ############################ Parallax #############################
-min_parallax = 4 # for robust estimation of relative pose (degrees)
+min_parallax = config['min_parallax']
 ############################# Min Pairs for submap #############################
-min_pairs_for_submap = 50 # for skipping submaps with too few pairs
+min_pairs_for_submap = config['min_pairs_for_submap']
 ############################# Min Matches for pose estimation #############################
-min_matches_for_pose = 5 # for skipping pairs with too few matches
-min_inliers_for_pose = 5 # for skipping pairs with too few inliers
+min_matches_for_pose = config['min_matches_for_pose']
+min_inliers_for_pose = config['min_inliers_for_pose']
 ############################# Thresholds #############################
-thresholds_r = np.array([1,3,5,10,20]) 
-thresholds_t = np.array([5,10,15,20,30])
-############################# Thresholds #############################
-# pair_images_strategy = "greedy_sequential" # for filtering image pairs
-pair_images_strategy = "exhaustive" # for filtering image pairs
-random_subset = True # for selecting a random subset of pairs after filtering
-random_subset_size = 50
+thresholds_r = np.array(config['thresholds_r'])
+thresholds_t = np.array(config['thresholds_t'])
+############################# Pair Images Strategy #############################
+pair_images_strategy = config['pair_images_strategy']
+random_subset = config['random_subset']
+random_subset_size = config['random_subset_size']
 ############################## Min distance between frames #############################
-min_distance_bw_frames = 5
+min_distance_bw_frames = config['min_distance_bw_frames']
 
 def main_loop():
     

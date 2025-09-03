@@ -23,7 +23,7 @@ git submodule update --init --recursive
 pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision torchaudio
 
 # --- Install IMM (from source, recommended) ---
-cd utils/image-matching-models
+cd tools/image-matching-models
 pip install -e .
 pip install '.[all]'
 cd ../../

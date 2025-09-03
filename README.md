@@ -1,8 +1,3 @@
-Perfect — let’s draft a `README.md` that explains how to set up and run **colon\_matching** with its dependency on **image-matching-models (IMM)**. I’ll keep it clean, structured, and suitable for GitHub.
-
----
-
-````markdown
 # colon_matching
 
 Tools for evaluating and benchmarking feature matching models on colonoscopy datasets.  

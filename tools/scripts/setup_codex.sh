@@ -28,9 +28,6 @@ pip install -e .
 pip install '.[all]'
 cd ../../
 
-# --- Colon_matching extras (minimal set; extend if needed) ---
-pip install -r requirements.txt
-
 # --- Register kernel ---
 python -m ipykernel install --user --name colon_matching --display-name "Python (colon_matching)"
 

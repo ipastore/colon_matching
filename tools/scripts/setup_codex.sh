@@ -14,7 +14,7 @@ git lfs install
 python -m pip install -U pip wheel setuptools
 
 # --- Go to repo root ---
-cd /workspace/colon_matching
+cd "$(git rev-parse --show-toplevel)"
 
 # --- Init submodules just in case ---
 git submodule update --init --recursive
@@ -23,7 +23,7 @@ git submodule update --init --recursive
 pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision torchaudio
 
 # --- Install IMM (from source, recommended) ---
-cd ../image-matching-models
+cd tools/image-matching_models
 pip install -e .
 pip install '.[all]'
 cd ../../

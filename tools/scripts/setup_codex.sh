@@ -22,6 +22,12 @@ git submodule update --init --recursive
 # --- Install PyTorch (CPU wheel) ---
 pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision torchaudio
 
+# --- DEBUG ---
+echo "Contents of tools/:"
+ls -l tools/
+echo "current wd"
+pwd
+
 # --- Install IMM (from source, recommended) ---
 cd tools/image-matching_models
 pip install -e .

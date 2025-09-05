@@ -1,6 +1,3 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
 echo "[setup_codex.sh] Starting setup..."
 
 # --- System deps commonly needed by OpenCV/IMM ---
@@ -15,9 +12,20 @@ python -m pip install -U pip wheel setuptools
 
 # --- Go to repo root ---
 cd "$(git rev-parse --show-toplevel)"
+pwd
+ls -lah
+
+# Install dependencies of main repo
+pip install -r "requirements.txt"
 
 # --- Init submodules just in case ---
-git submodule update --init --recursive
+cd "$(git rev-parse --show-toplevel)"
+ls -lah
+
+git lfs install --skip-smudge
+
+# git config submodule.matching/third_party/SphereGlue.update none
+git submodule update --init --recursive tools/image-matching_models
 
 # --- Install PyTorch (CPU wheel) ---
 pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision torchaudio
@@ -30,18 +38,14 @@ pwd
 
 # --- Install IMM (from source, recommended) ---
 cd tools/image-matching_models
+echo "Installing IMM..."
 pip install -e .
+echo "Installing IMM with all extras..."
 pip install '.[all]'
-cd ../../
+echo "IMM installed with all extras."
 
+echo "Registering ipkernel..."
 # --- Register kernel ---
 python -m ipykernel install --user --name colon_matching --display-name "Python (colon_matching)"
-
-# --- Quick smoke test ---
-python - <<'PY'
-from matching import get_matcher
-m = get_matcher('sift-lg', device='cpu')
-print("IMM OK:", type(m).__name__)
-PY
 
 echo "[setup_codex.sh] Done."

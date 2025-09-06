@@ -1,0 +1,84 @@
+# Configuration file for error_measurement.py
+# This file contains all the configuration parameters that were previously hardcoded
+
+# Logging Configuration
+debug:
+  enabled: true  # Global debug flag. Set to false to disable extra debug logging
+  activated_flags:
+    - "filter_image_pairs"
+    - "error_measurement"
+    # Available flags: "match_image_pairs", "filter_image_pairs", "filter_image_feats_with_mask", 
+    # "easy_medium_hard", "filter_feat_dict_with_mask", "base_matcher_forward", "Roma_forward", 
+    # "Roma_forward_symmetric", "TinyRoma_forward", "ALL"
+
+# Model Configuration
+models:
+  - "superpoint-lg"
+  # Available models: "sift-nn", "superpoint-lg", "gim-lg", "tiny-roma", "sift-lg", "roma"
+
+# Image Processing
+resize: null  # square resize that do not preserve aspect ratio, caution
+masking: true  # Enable specular masking
+plot_kpts: true  # Plot keypoints
+
+# Matcher Hyperparameters
+matcher_kwargs:
+  # SuperPoint parameters
+  detection_threshold: 0.00005  # SuperPoint keypoint detection threshold. Default 0.005
+  max_superpoint_keypoints: 4000  # Maximum number of keypoints to detect. Default 1024
+  
+  # LightGlue parameters (with superpoint)
+  filter_threshold: 0.1  # LightGlue matching threshold. Default 0.1
+  depth_confidence: -1  # early stopping, disable with -1 / 0.95
+  width_confidence: -1  # point pruning, disable with -1 / 0.99
+  
+  # SIFT parameters
+  lowe_thresh: 0.75  # Lowe's ratio test threshold
+  max_sift_keypoints: 5000  # Maximum number of keypoints to detect
+  contrast_threshold: 0.00025  # SIFT contrast threshold. Rauls 0.00067. Default 0.02
+  edge_threshold: 100  # SIFT edge threshold. Rauls 50. Default 15
+  n_octave_layers: 8  # SIFT number of octave layers
+  
+  # KNN parameters (SIFT)
+  k_neighbors: 2  # Number of nearest neighbors to consider for matching
+  
+  # Roma parameters
+  roma_model: "roma_outdoor"  # Choose between 'roma_outdoor' or 'roma_indoor'
+
+# RANSAC Configuration
+ransac_kwargs:
+  skip_ransac: true  # Skip RANSAC for relative pose estimation
+  ransac_reproj_thresh: 0.0  # not used if skip_ransac is true
+  ransac_conf: 0.0  # not used if skip_ransac is true
+  ransac_iters: 0  # not used if skip_ransac is true
+
+# Sequence Configuration
+seq: "seq_001_002"  # Sequence name
+
+# Covisibility Filtering
+covisibility_threshold: 0.0  # for filtering image pairs (easy, medium, hard)
+min_shared_points: 15  # for filtering image pairs
+min_track_len: 3  # for filtering image pairs
+max_reproj_error: 2.0  # for filtering image pairs
+
+# Parallax Configuration
+min_parallax: 4  # for robust estimation of relative pose (degrees)
+
+# Submap Configuration
+min_pairs_for_submap: 50  # for skipping submaps with too few pairs
+
+# Pose Estimation Configuration
+min_matches_for_pose: 5  # for skipping pairs with too few matches
+min_inliers_for_pose: 5  # for skipping pairs with too few inliers
+
+# Error Thresholds
+thresholds_r: [1, 3, 5, 10, 20]  # rotation error thresholds
+thresholds_t: [5, 10, 15, 20, 30]  # translation error thresholds
+
+# Pair Selection Strategy
+pair_images_strategy: "exhaustive"  # "greedy_sequential" or "exhaustive"
+random_subset: true  # for selecting a random subset of pairs after filtering
+random_subset_size: 50  # size of random subset
+
+# Frame Distance
+min_distance_bw_frames: 5  # minimum distance between frames

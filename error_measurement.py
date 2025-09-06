@@ -23,12 +23,6 @@ import psutil
 import tracemalloc
 import yaml
 
-
-
-import yaml
-
-
-
 def load_config(config_path="config.yaml"):
     """Load configuration from YAML file."""
     config_file = Path(config_path)

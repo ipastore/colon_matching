@@ -17,7 +17,7 @@ models:
   # Available models: "sift-nn", "superpoint-lg", "gim-lg", "tiny-roma", "sift-lg", "roma"
 
 # Image Processing
-resize: null  # null preserves aspect ratio, or specify integer like 512
+resize: null  # square resize that do not preserve aspect ratio, caution
 masking: true  # Enable specular masking
 plot_kpts: true  # Plot keypoints
 

@@ -5,7 +5,7 @@ import numpy as np
 import time
 from pathlib import Path
 from datetime import datetime
-from colmap_opencv_helpers import compute_mAA
+from colmap_opencv_helpers import compute_mAA, compute_mean_AA
 
 # Custom serialization function to handle numpy arrays and SimpleNamespace objects
 def convert_to_serializable(obj):
@@ -61,7 +61,8 @@ def finalize_current_submap(submap, submap_rot_errs, submap_trans_errs, pair_met
     submap_rmse_rot = np.sqrt(np.mean(np.array(submap_rot_errs) ** 2))
 
     # Compute the average accuracy for this submap
-    mAA = compute_mAA(submap_rot_errs, submap_trans_errs, thresholds_r, thresholds_t)
+    threshold_accuracies = compute_mAA(submap_rot_errs, submap_trans_errs, thresholds_r, thresholds_t)
+    mAA = np.mean(threshold_accuracies)  # For backward compatibility
 
     # Calculate Nimg for the submap. Nimg is the number of PAIR of images that were registered over ALL PAIRS of images.
     Nimg_submap = len(registered_images)
@@ -76,6 +77,7 @@ def finalize_current_submap(submap, submap_rot_errs, submap_trans_errs, pair_met
             "submap_total_time": submap_total_time,
             "submap_rmse_rotation_deg": submap_rmse_rot,
             "submap_mAA": mAA,
+            "submap_threshold_accuracies": [float(acc) for acc in threshold_accuracies],
             "Total_img": total_images_submap,
             "Nimg_percentage": Nimg_percentage,
     }

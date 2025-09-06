@@ -72,6 +72,22 @@ def compute_mAA(rot_errors_deg, trans_errors_m, thresholds_r, thresholds_t):
         acc = n_accurate / n_pairs
         accuracies.append(acc)
     
+    return accuracies
+
+def compute_mean_AA(rot_errors_deg, trans_errors_m, thresholds_r, thresholds_t):
+    """
+    Compute mean Average Accuracy (mAA) for backward compatibility.
+    
+    Args:
+        rot_errors_deg: [rot_err_1, rot_err_2, ...] for a single scene
+        trans_errors_m: [trans_err_1, trans_err_2, ...] for a single scene
+        thresholds_r: e.g. [1,2,3,...,10] (deg)
+        thresholds_t: e.g. [0.2, 0.35, 0.6, 1, 2, 5]
+
+    Returns:
+        float: mean of accuracies at each threshold pair for this scene
+    """
+    accuracies = compute_mAA(rot_errors_deg, trans_errors_m, thresholds_r, thresholds_t)
     return np.mean(accuracies)
 
 def compute_AA(rot_err, trans_err, thresholds_r, thresholds_t):

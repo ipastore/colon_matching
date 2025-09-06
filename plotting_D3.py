@@ -42,6 +42,7 @@ for submap_file in submap_files:
         total_img = submap_report.get("submap_data").get("results", None).get("Total_img",None)
         nimg_percentage = submap_report.get("submap_data").get("results", None).get("Nimg_percentage",None)
         mAA = submap_report.get("submap_data").get("results", None).get("submap_mAA", None)
+        threshold_accuracies = submap_report.get("submap_data").get("results", None).get("submap_threshold_accuracies", None)
         mean_submap_p3d_error_pre_filter = submap_report.get("metadata").get("mean_submap_p3d_error_pre_filter", None)
         median_submap_p3d_error_pre_filter = submap_report.get("metadata").get("median_submap_p3d_error_pre_filter", None)
         submap_p3d_errors_pre_filter = submap_report.get("metadata").get("submap_p3d_errors_pre_filter", None)
@@ -64,6 +65,7 @@ for submap_file in submap_files:
                 'inliers': pair["inliers"],
                 'Total_img': total_img,
                 'mAA': mAA,
+                'threshold_accuracies': threshold_accuracies,
                 'Nimg_percentage': nimg_percentage,
                 'parallax': pair["parallax"],
                 "covis_score": pair["covis_score"],

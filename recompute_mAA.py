@@ -7,7 +7,7 @@ from datetime import datetime
 import argparse
 import logging
 import numpy as np
-from colmap_opencv_helpers import compute_mAA
+from colmap_opencv_helpers import compute_mAA, compute_mean_AA
 from reporting_helpers import save_submap_report
 from types import SimpleNamespace
 from typing import List, Dict, Any
@@ -52,10 +52,12 @@ def main():
         old_mAA = data["submap_data"]["results"]["submap_mAA"]
 
         # Compute the new mAA for the submap
-        new_mAA = compute_mAA(submap_rot_errors, submap_trans_errors, thresholds_r, thresholds_t)
+        threshold_accuracies = compute_mAA(submap_rot_errors, submap_trans_errors, thresholds_r, thresholds_t)
+        new_mAA = np.mean(threshold_accuracies)
 
-        # Update new_mAA in the submap data, results. Also update thresholds in metadata
+        # Update new_mAA and threshold_accuracies in the submap data, results. Also update thresholds in metadata
         data["submap_data"]["results"]["submap_mAA"] = new_mAA
+        data["submap_data"]["results"]["submap_threshold_accuracies"] = [float(acc) for acc in threshold_accuracies]
         data["metadata"]["thresholds_r"] = thresholds_r
         data["metadata"]["thresholds_t"] = thresholds_t
         data["metadata"]["report_status"] = "recomputed"

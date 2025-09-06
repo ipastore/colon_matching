@@ -12,8 +12,8 @@ class TestConfigLoading(unittest.TestCase):
     
     def setUp(self):
         """Set up the test configuration file path."""
-        self.config_path = Path(__file__).parent.parent / "config.yaml"
-    
+        self.config_path = Path(__file__).parent.parent.parent / "config.yaml"
+
     def test_config_file_exists(self):
         """Test that the config.yaml file exists."""
         self.assertTrue(self.config_path.exists(), "config.yaml file should exist")

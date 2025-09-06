@@ -9,3 +9,4 @@ pycolmap
 plotly
 dash
 pyyaml
+pytest

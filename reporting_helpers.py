@@ -125,6 +125,7 @@ def create_sequence_report(seq, model_name, submaps_dir, output_dir, logger, met
     
     # Variables for accumulating sequence stats
     all_submap_aas = []
+    all_threshold_accuracies = []
     all_extractor_times = []
     all_filter_times = []
     all_matcher_times = []
@@ -145,6 +146,12 @@ def create_sequence_report(seq, model_name, submaps_dir, output_dir, logger, met
         
         # Accumulate stats for sequence averages
         all_submap_aas.append(submap_content.get("submap_mAA", 0))
+        
+        # Accumulate threshold accuracies
+        threshold_accs = submap_content.get("submap_threshold_accuracies", [])
+        if threshold_accs:
+            all_threshold_accuracies.append(threshold_accs)
+            
         all_extractor_times.append(submap_content.get("average_extractor_time", 0))
         all_filter_times.append(submap_content.get("average_filter_time", 0))
         all_matcher_times.append(submap_content.get("average_matcher_time", 0))
@@ -158,6 +165,17 @@ def create_sequence_report(seq, model_name, submaps_dir, output_dir, logger, met
     # Compute sequence-level statistics
     if all_submap_aas:
         sequence_report["sequence_mAA"] = float(np.mean(all_submap_aas))
+    
+    # Compute sequence-level threshold accuracies
+    if all_threshold_accuracies:
+        # Calculate average for each threshold across all submaps
+        num_thresholds = len(all_threshold_accuracies[0])
+        sequence_threshold_accuracies = []
+        for i in range(num_thresholds):
+            threshold_sum = sum(submap_accs[i] for submap_accs in all_threshold_accuracies)
+            avg_accuracy = threshold_sum / len(all_threshold_accuracies)
+            sequence_threshold_accuracies.append(float(avg_accuracy))
+        sequence_report["sequence_threshold_accuracies"] = sequence_threshold_accuracies
     
     sequence_report["sequence_averages"] = {
         "extractor_time": float(np.mean(all_extractor_times)) if all_extractor_times else 0,

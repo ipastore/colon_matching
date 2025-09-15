@@ -349,6 +349,7 @@ def filter_image_pairs_greedy_sequential(
                 debug_log(logger, 'filter_image_pairs', f"Could not find images in reconstruction. Skipping pair.")
                 continue
             
+            # # TODO: this can be refactored with a complete function of compute covisibility
             # Filter 2: Shared 3D points
             pointsA = {pt.point3D_id for pt in imageA.points2D if pt.has_point3D()}
             pointsB = {pt.point3D_id for pt in imageB.points2D if pt.has_point3D()}
@@ -364,7 +365,9 @@ def filter_image_pairs_greedy_sequential(
                 debug_log(logger, 'filter_image_pairs', f"Pair ({img0_name}, {img1_name}) has only {n_shared} shared points < {min_shared_points}. Skipping.")
                 continue
             
-            # Filter 3: Covisibility score
+            # TODO: Update the computation of covisibility, being the Bbox of the keypoints
+            # of image A seen in image B and viceversa. Then, take the lowest score.
+            # update the Filter 3: Covisibility score
             min_count = min(len(pointsA_valid), len(pointsB_valid))
             covis_score = n_shared / float(min_count)
             
@@ -430,6 +433,7 @@ def filter_image_pairs_greedy_sequential(
     return final_pairs
 
 def filter_image_pairs_exhaustive(
+        
     images,
     reconstruction,
     covisibility_graph,

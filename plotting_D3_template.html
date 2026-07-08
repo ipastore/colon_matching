@@ -109,6 +109,7 @@
                 <th>Total Pairs</th>
                 <th>Registered Pairs</th>
                 <th>mAA</th>
+                <th>Threshold Accuracies (%)</th>
                 <th>Mean P3D Error</th>
                 <th>Median P3D Error</th>
             </tr>
@@ -177,6 +178,7 @@ function updateSummaryTable() {
                 Total_img: d.Total_img,
                 Nimg_percentage: d.Nimg_percentage,
                 mAA: d.mAA,
+                threshold_accuracies: d.threshold_accuracies || [],
                 mean_submap_p3d_error_pre_filter: d.mean_submap_p3d_error_pre_filter,
                 median_submap_p3d_error_pre_filter: d.median_submap_p3d_error_pre_filter,
             };
@@ -213,13 +215,42 @@ function updateSummaryTable() {
                          validMedianP3DValues.reduce((sum, submap) => sum + submap.median_submap_p3d_error_pre_filter, 0) / validMedianP3DValues.length : 
                          null;
 
+    // Calculate average threshold accuracies
+    const validThresholdAccuracies = sortedSubmaps.filter(submap => 
+        submap.threshold_accuracies && submap.threshold_accuracies.length > 0);
+    let avgThresholdAccuraciesStr = 'N/A';
+    if (validThresholdAccuracies.length > 0) {
+        // Determine number of thresholds from first valid submap
+        const numThresholds = validThresholdAccuracies[0].threshold_accuracies.length;
+        const avgThresholdAccs = [];
+        
+        for (let i = 0; i < numThresholds; i++) {
+            const thresholdSum = validThresholdAccuracies.reduce((sum, submap) => 
+                sum + (submap.threshold_accuracies[i] || 0), 0);
+            avgThresholdAccs.push(thresholdSum / validThresholdAccuracies.length);
+        }
+        
+        avgThresholdAccuraciesStr = avgThresholdAccs
+            .map(acc => `${(acc * 100).toFixed(1)}%`)
+            .join(' / ');
+    }
+
     sortedSubmaps.forEach(submap => {
+        // Format threshold accuracies as "/% th1/% th2/ % th3/ % th4/ % th5/"
+        let thresholdAccuraciesStr = 'N/A';
+        if (submap.threshold_accuracies && submap.threshold_accuracies.length > 0) {
+            thresholdAccuraciesStr = submap.threshold_accuracies
+                .map(acc => `${(acc * 100).toFixed(1)}%`)
+                .join(' / ');
+        }
+        
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${submap.submap_id}</td>
             <td>${submap.Total_img}</td>
             <td>${submap.Nimg_percentage.toFixed(2)}%</td>
             <td>${submap.mAA ? submap.mAA.toFixed(4) : 'N/A'}</td>
+            <td>${thresholdAccuraciesStr}</td>
             <td>${submap.mean_submap_p3d_error_pre_filter ? submap.mean_submap_p3d_error_pre_filter.toFixed(4) : 'N/A'}</td>
             <td>${submap.median_submap_p3d_error_pre_filter ? submap.median_submap_p3d_error_pre_filter.toFixed(4) : 'N/A'}</td>
         `;
@@ -238,6 +269,7 @@ function updateSummaryTable() {
         <td><strong>${avgTotalImg.toFixed(1)}</strong></td>
         <td><strong>${avgNimgPercentage.toFixed(2)}%</strong></td>
         <td><strong>${avgMAA !== null ? avgMAA.toFixed(4) : 'N/A'}</strong></td>
+        <td><strong>${avgThresholdAccuraciesStr}</strong></td>
         <td><strong>${avgMeanP3D !== null ? avgMeanP3D.toFixed(4) : 'N/A'}</strong></td>
         <td><strong>${avgMedianP3D !== null ? avgMedianP3D.toFixed(4) : 'N/A'}</strong></td>
     `;
